@@ -1,0 +1,10 @@
+# Polaris settings for reviewing this repository. CI reads them from the base branch.
+[workflow]
+# Hand-written evaluation corpora deliberately contain the risky patterns Polaris looks for.
+# Excluded files are still listed as excluded in every report, never silently dropped.
+exclude = [
+  "benchmarks/challenge/**",
+  "benchmarks/challenge-holdout/**",
+  "benchmarks/workflow_corpus/**",
+  "benchmarks/prompt-pilot/**",
+]

@@ -1,0 +1,14 @@
+Polaris by TheoVex — TheoVex Lab
+Copyright 2026 Praetor contributors
+
+Polaris (formerly Praetor) is an independent security-assessment research project.
+It is not affiliated with TypeSafe, Jev, Answer.AI, LightOn, or Convai Innovations.
+No Jev architecture or RLCD implementation is claimed or included.
+
+No pretrained or fine-tuned third-party model weights are distributed in this
+source tree. Users supplying ModernBERT weights must retain the upstream
+Apache-2.0 license and notices. Training-data and model provenance must be
+audited separately from this software license.
+
+The included original smoke fixtures are software test fixtures under
+Apache-2.0. They are not human-adjudicated security ground truth.

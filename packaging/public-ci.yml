@@ -1,0 +1,49 @@
+name: CI
+
+# Lint, type-check and test every pull request and every push to main.
+#
+# Every action is pinned to a full commit, checkouts keep no credentials, and values reach shell
+# scripts only through environment variables, never by `${{ }}` interpolation.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint, type-check and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      # Model tests are skipped without the model extra; nothing is downloaded from a model hub.
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Install the locked environment
+        run: uv sync --locked --extra api --extra mcp --extra tui
+
+      - name: Lint
+        run: uv run --locked --extra api --extra mcp --extra tui ruff check .
+
+      - name: Type-check
+        run: uv run --locked --extra api --extra mcp --extra tui mypy src
+
+      - name: Test
+        run: uv run --locked --extra api --extra mcp --extra tui pytest -q

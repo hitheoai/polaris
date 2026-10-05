@@ -1,0 +1,32 @@
+# Polaris hooks for https://pre-commit.com. They use the `polaris` already installed on this
+# machine (install.sh or pip), so the model and PyTorch aren't reinstalled for every repository.
+#
+#   repos:
+#     - repo: https://github.com/hitheoai/polaris
+#       rev: v0.4.0
+#       hooks:
+#         - id: polaris-review
+- id: polaris-review
+  name: Polaris security review
+  description: Reviews staged Python changes for SQL and command injection (static rules, plus the local Polaris model's second opinion when installed).
+  entry: polaris review --staged --fail-on flagged
+  language: system
+  types: [python]
+  pass_filenames: false
+  require_serial: true
+- id: polaris-workflow
+  name: Polaris required static workflow review
+  description: Independently reviews the staged revision and fails on findings or incomplete required analysis.
+  entry: python -I -m polaris workflow review --staged --require-complete
+  language: system
+  pass_filenames: false
+  always_run: true
+  require_serial: true
+- id: polaris-review-rules
+  name: Polaris security review (static rules)
+  description: Same review using only Polaris's static rules; needs no model or PyTorch.
+  entry: polaris review --staged --fail-on flagged --engine rules
+  language: system
+  types: [python]
+  pass_filenames: false
+  require_serial: true

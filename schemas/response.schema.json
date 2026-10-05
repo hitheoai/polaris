@@ -1,0 +1,515 @@
+{
+  "$defs": {
+    "CheckResult": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "probabilities": {
+                "type": "null"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "status": {
+                "const": "assessed"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "probabilities": {
+                "$ref": "#/$defs/RiskProbabilities"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "check_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Check Id",
+          "type": "string"
+        },
+        "check_revision": {
+          "minimum": 1,
+          "title": "Check Revision",
+          "type": "integer"
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/EvidenceReference"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "probabilities": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RiskProbabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "enum": [
+              "supported_assessment",
+              "unknown_check",
+              "unsupported_revision",
+              "unsupported_domain",
+              "unreleased_check",
+              "missing_context",
+              "conflicting_context",
+              "known_omissions",
+              "insufficient_context",
+              "uncertain"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "assessed",
+            "abstain",
+            "unsupported"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check_id",
+        "check_revision",
+        "status",
+        "reason_codes",
+        "probabilities",
+        "coverage"
+      ],
+      "title": "CheckResult",
+      "type": "object"
+    },
+    "Coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "consumed_context": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "title": "Consumed Context",
+          "type": "array"
+        },
+        "consumed_evidence": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "title": "Consumed Evidence",
+          "type": "array"
+        },
+        "consumed_tokens": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "known_omissions": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Known Omissions",
+          "type": "array"
+        },
+        "missing_required_context": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Missing Required Context",
+          "type": "array"
+        },
+        "scope": {
+          "const": "supplied_snapshot_only",
+          "default": "supplied_snapshot_only",
+          "title": "Scope",
+          "type": "string"
+        },
+        "supplied_evidence": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "title": "Supplied Evidence",
+          "type": "array"
+        },
+        "supplied_tokens": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TokenCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "truncated": {
+          "const": false,
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "supplied_evidence"
+      ],
+      "title": "Coverage",
+      "type": "object"
+    },
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "end_byte": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Byte"
+        },
+        "evidence_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "method": {
+          "enum": [
+            "input_coverage",
+            "validated_extractor",
+            "deterministic_finding"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "relation": {
+          "enum": [
+            "considered",
+            "supporting"
+          ],
+          "title": "Relation",
+          "type": "string"
+        },
+        "start_byte": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Byte"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "digest",
+        "relation",
+        "method"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "RiskProbabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "risk_absent": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Risk Absent",
+          "type": "number"
+        },
+        "risk_present": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Risk Present",
+          "type": "number"
+        }
+      },
+      "required": [
+        "risk_present",
+        "risk_absent"
+      ],
+      "title": "RiskProbabilities",
+      "type": "object"
+    },
+    "RuntimeIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Digest"
+        },
+        "calibration_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Version"
+        },
+        "max_input_tokens": {
+          "anyOf": [
+            {
+              "maximum": 2048,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Input Tokens"
+        },
+        "model_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Digest"
+        },
+        "model_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Version"
+        },
+        "operating_profile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operating Profile Digest"
+        },
+        "operating_profile_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operating Profile Version"
+        },
+        "preprocessing_version": {
+          "default": "snapshot-json/0.2.0",
+          "title": "Preprocessing Version",
+          "type": "string"
+        },
+        "release_status": {
+          "default": "not_loaded",
+          "enum": [
+            "not_loaded",
+            "experimental",
+            "qualified"
+          ],
+          "title": "Release Status",
+          "type": "string"
+        },
+        "runtime_variant": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Variant"
+        },
+        "tokenizer_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer Version"
+        }
+      },
+      "title": "RuntimeIdentity",
+      "type": "object"
+    },
+    "TokenCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "minimum": 0,
+          "title": "Action",
+          "type": "integer"
+        },
+        "evidence": {
+          "minimum": 0,
+          "title": "Evidence",
+          "type": "integer"
+        },
+        "framing": {
+          "minimum": 0,
+          "title": "Framing",
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "trusted_context": {
+          "minimum": 0,
+          "title": "Trusted Context",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "action",
+        "evidence",
+        "trusted_context",
+        "framing",
+        "total"
+      ],
+      "title": "TokenCoverage",
+      "type": "object"
+    }
+  },
+  "$id": "urn:polaris:assessment:0.1.0:response",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": "polaris.assessment/0.1.0",
+      "default": "polaris.assessment/0.1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "assessment",
+      "default": "assessment",
+      "title": "Kind",
+      "type": "string"
+    },
+    "registry_version": {
+      "const": "polaris.checks/0.1.0",
+      "default": "polaris.checks/0.1.0",
+      "title": "Registry Version",
+      "type": "string"
+    },
+    "request_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:/@-]+$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "results": {
+      "items": {
+        "$ref": "#/$defs/CheckResult"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Results",
+      "type": "array"
+    },
+    "runtime": {
+      "$ref": "#/$defs/RuntimeIdentity"
+    }
+  },
+  "required": [
+    "request_id",
+    "request_digest",
+    "runtime",
+    "results"
+  ],
+  "title": "AssessmentResponse",
+  "type": "object"
+}

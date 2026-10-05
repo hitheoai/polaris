@@ -1,0 +1,16 @@
+{
+  "format": "polaris.macos-publisher/2",
+  "approved": false,
+  "publisherRepository": null,
+  "downloadOrigin": null,
+  "sourceRevision": null,
+  "complianceReportSha256": null,
+  "sourceBundleDirectory": null,
+  "complianceAuthorization": null,
+  "acceptanceApproval": null,
+  "certificateSha1": null,
+  "teamId": null,
+  "identifierPrefix": null,
+  "legalApproval": null,
+  "notaryKeychainProfile": null
+}

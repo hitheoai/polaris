@@ -1,0 +1,99 @@
+{
+  "format": "polaris.compliance-policy/2",
+  "firstPartyNames": ["theovex-polaris"],
+  "sourceObligations": {
+    "certifi": {
+      "declaredLicense": "MPL-2.0",
+      "requiredReview": "Verify exact covered-file source, modifications, notices and distribution/source availability."
+    },
+    "semgrep": {
+      "declaredLicense": "LGPL-2.1-or-later",
+      "declarationConflicts": [
+        {
+          "version": "1.136.0",
+          "packageDeclaration": "LGPL-2.1-or-later",
+          "sourceDeclaration": "LGPL-2.1-only",
+          "sourceURL": "https://raw.githubusercontent.com/semgrep/semgrep/7d52dc9cbf57598680b1607138e9c6bd66659687/semgrep.opam",
+          "requiredReview": "Reconcile the 1.136.0 wheel's LGPL-2.1-or-later declaration with the exact source semgrep.opam declaration of LGPL-2.1-only; neither declaration is automatically overridden."
+        },
+        {
+          "version": "1.178.0",
+          "packageDeclaration": "LGPL-2.1-or-later",
+          "sourceDeclaration": "LGPL-2.1-only",
+          "sourceURL": "https://raw.githubusercontent.com/semgrep/semgrep/2f122b2feb38cc06272b1dde5b482e85eaf3adad/semgrep.opam",
+          "requiredReview": "Reconcile the exact 1.178.0 wheel and native root declarations; the public source revision is not proof of correspondence to privately built native payloads."
+        },
+        {
+          "version": "1.178.0+theovex.1",
+          "packageDeclaration": "LGPL-2.1-or-later",
+          "sourceDeclaration": "LGPL-2.1-only",
+          "sourceURL": "https://raw.githubusercontent.com/semgrep/semgrep/2f122b2feb38cc06272b1dde5b482e85eaf3adad/semgrep.opam",
+          "requiredReview": "The downstream metadata-only derivative retains upstream native bytes and both license declarations. Independently determine source delivery, modification notices, applicable LGPL linking/relink terms and exact compiled-source correspondence."
+        }
+      ],
+      "requiredReview": "Verify matching native source, generated sources, pinned build submodules/scripts and dependencies, modifications, applicable linking terms and source availability. An upstream tag or Python wrapper source alone is not closure."
+    }
+  },
+  "resolutionRequirements": {
+    "native_build_provenance_unresolved": {
+      "technical": ["build-provenance", "source-manifest"],
+      "legal": ["license-review"],
+      "security": ["advisory-review"]
+    },
+    "declared_dependency_closure_unverified": {
+      "technical": ["build-provenance", "source-manifest"],
+      "legal": ["license-review"],
+      "security": ["advisory-review"]
+    },
+    "runtime_dependency_closure_unverified": {
+      "technical": ["build-provenance", "source-manifest"],
+      "legal": ["license-review"],
+      "security": ["advisory-review"]
+    },
+    "license_text_missing": {
+      "technical": ["original-notice"],
+      "legal": ["license-review"]
+    },
+    "corresponding_source_review_required": {
+      "technical": ["source-manifest", "source-delivery"],
+      "legal": ["license-review"]
+    },
+    "source_license_declaration_conflict": {
+      "legal": ["license-review"]
+    },
+    "advisory_coverage_unknown": {
+      "security": ["advisory-review"]
+    },
+    "advisory_record_requires_review": {
+      "security": ["advisory-review"]
+    },
+    "advisory_triage_required": {
+      "security": ["advisory-review"]
+    },
+    "advisory_findings_or_incomplete_results": {
+      "security": ["advisory-review"]
+    },
+    "supplement_evidence_unresolved": {
+      "technical": ["review-analysis"],
+      "legal": ["license-review"],
+      "security": ["advisory-review"]
+    },
+    "vendor_versions_unresolved": {
+      "technical": ["source-manifest"],
+      "legal": ["license-review"],
+      "security": ["advisory-review"]
+    }
+  },
+  "limitations": [
+    "This tool makes no legal-approval or vulnerability-free determination.",
+    "License metadata is a declaration, not verified redistribution permission.",
+    "Lockfile membership is not proof that a dependency was compiled into a binary.",
+    "Metadata and declaration digests identify evidence bytes, not complete installed package trees.",
+    "An advisory query with no matches is not proof of vulnerability-free code, exhaustive coverage or current freshness.",
+    "Source attachments and upstream links do not by themselves prove corresponding-source completeness.",
+    "Semgrep Registry and unrelated test-rule material must not be mirrored automatically.",
+    "Resolution evidence records reviewed assertions; hashes and reviewer authorization cannot prove their semantic truth.",
+    "Security-risk acceptance preserves the finding and is not a claim that the vulnerability or source obligation ceased to exist.",
+    "Owner authorization and reviewer capabilities must be supplied outside evaluated evidence; local decisions are not trusted CI attestations."
+  ]
+}

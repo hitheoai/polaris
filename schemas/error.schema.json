@@ -1,0 +1,75 @@
+{
+  "$id": "urn:polaris:assessment:0.1.0:error",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "category": {
+      "enum": [
+        "input",
+        "runtime"
+      ],
+      "title": "Category",
+      "type": "string"
+    },
+    "code": {
+      "enum": [
+        "invalid_input",
+        "unsupported_contract",
+        "payload_limit",
+        "context_limit",
+        "model_unavailable",
+        "artifact_invalid",
+        "unqualified_model",
+        "calibration_mismatch",
+        "timeout",
+        "non_finite_output",
+        "inference_error"
+      ],
+      "title": "Code",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "polaris.assessment/0.1.0",
+      "default": "polaris.assessment/0.1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "kind": {
+      "const": "error",
+      "default": "error",
+      "title": "Kind",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "request_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Request Id"
+    },
+    "retryable": {
+      "default": false,
+      "title": "Retryable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "category",
+    "code",
+    "message"
+  ],
+  "title": "ErrorResponse",
+  "type": "object"
+}

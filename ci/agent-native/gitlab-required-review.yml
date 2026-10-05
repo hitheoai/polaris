@@ -1,0 +1,50 @@
+# Centrally enforced pipeline configuration only; an MR-controlled include is not a gate.
+# A disposable non-root shell runner and its protected control plane supply all inputs.
+polaris-required-review:
+  stage: test
+  tags: [polaris-review-isolated]
+  timeout: 10m
+  allow_failure: false
+  inherit:
+    default: false
+    variables: false
+  variables:
+    GIT_STRATEGY: empty
+    GIT_CHECKOUT: "false"
+    GIT_SUBMODULE_STRATEGY: none
+    GIT_LFS_SKIP_SMUDGE: "1"
+    BASH_ENV: /dev/null
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  before_script: []
+  after_script: []
+  cache: []
+  dependencies: []
+  needs: []
+  script:
+    - |
+      /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent \
+        /usr/bin/python3 -I -S -c '
+      import os, stat, sys
+      from pathlib import Path
+      launcher = Path("/opt/polaris-ci/required_review.py")
+      if os.geteuid() == 0:
+          raise SystemExit(2)
+      for path in reversed((launcher, *launcher.parents)):
+          info = path.lstat()
+          if info.st_uid != 0 or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+              raise SystemExit(2)
+      if not stat.S_ISREG(launcher.lstat().st_mode):
+          raise SystemExit(2)
+      os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", "-S", str(launcher), *sys.argv[1:]])
+      ' \
+        --provider gitlab --repository "$CI_PROJECT_PATH" \
+        --run-id "${CI_PIPELINE_ID}:${CI_JOB_ID}" \
+        --base-sha "$CI_MERGE_REQUEST_DIFF_BASE_SHA" --head-sha "$CI_COMMIT_SHA" \
+        --output-dir "$CI_PROJECT_DIR/polaris-required-review"
+  artifacts:
+    when: always
+    access: developer
+    expire_in: 7 days
+    paths:
+      - polaris-required-review/

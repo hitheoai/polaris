@@ -1,0 +1,404 @@
+{
+  "$defs": {
+    "CheckRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Check Id",
+          "type": "string"
+        },
+        "check_revision": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Check Revision",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "check_id"
+      ],
+      "title": "CheckRequest",
+      "type": "object"
+    },
+    "CodeChange": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Action Id",
+          "type": "string"
+        },
+        "after_refs": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "After Refs",
+          "type": "array"
+        },
+        "before_refs": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Before Refs",
+          "type": "array"
+        },
+        "diff_refs": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Diff Refs",
+          "type": "array"
+        },
+        "kind": {
+          "const": "code_change",
+          "title": "Kind",
+          "type": "string"
+        },
+        "language": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Language",
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "kind",
+        "language",
+        "after_refs"
+      ],
+      "title": "CodeChange",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "maxLength": 131072,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "evidence_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Evidence Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "code_before",
+            "code_after",
+            "diff",
+            "tool_output",
+            "document",
+            "log",
+            "data_flow"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "origin": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Origin",
+          "type": "string"
+        },
+        "revision": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Revision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "kind",
+        "origin",
+        "revision",
+        "digest",
+        "content"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "SourceLocation": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "start_line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Line"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "SourceLocation",
+      "type": "object"
+    },
+    "ToolAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Action Id",
+          "type": "string"
+        },
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Arguments",
+          "type": "object"
+        },
+        "kind": {
+          "const": "tool_action",
+          "title": "Kind",
+          "type": "string"
+        },
+        "summary": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Summary",
+          "type": "string"
+        },
+        "targets": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Targets",
+          "type": "array"
+        },
+        "tool_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Tool Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_id",
+        "kind",
+        "tool_name",
+        "arguments",
+        "targets"
+      ],
+      "title": "ToolAction",
+      "type": "object"
+    },
+    "TrustedContext": {
+      "additionalProperties": false,
+      "properties": {
+        "conflicts_with": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:/@-]+$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Conflicts With",
+          "type": "array"
+        },
+        "content": {
+          "maxLength": 65536,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "context_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Context Id",
+          "type": "string"
+        },
+        "digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "policy",
+            "principal",
+            "tenant",
+            "purpose",
+            "environment",
+            "scope"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "revision": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:/@-]+$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "source": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "context_id",
+        "kind",
+        "source",
+        "revision",
+        "digest",
+        "content"
+      ],
+      "title": "TrustedContext",
+      "type": "object"
+    }
+  },
+  "$id": "urn:polaris:assessment:0.1.0:request",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "discriminator": {
+        "mapping": {
+          "code_change": "#/$defs/CodeChange",
+          "tool_action": "#/$defs/ToolAction"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CodeChange"
+        },
+        {
+          "$ref": "#/$defs/ToolAction"
+        }
+      ],
+      "title": "Action"
+    },
+    "contract_version": {
+      "const": "polaris.assessment/0.1.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "evidence": {
+      "items": {
+        "$ref": "#/$defs/Evidence"
+      },
+      "maxItems": 64,
+      "title": "Evidence",
+      "type": "array"
+    },
+    "known_omissions": {
+      "items": {
+        "maxLength": 1024,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "title": "Known Omissions",
+      "type": "array"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:/@-]+$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "requested_checks": {
+      "items": {
+        "$ref": "#/$defs/CheckRequest"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Requested Checks",
+      "type": "array"
+    },
+    "trusted_context": {
+      "items": {
+        "$ref": "#/$defs/TrustedContext"
+      },
+      "maxItems": 64,
+      "title": "Trusted Context",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_version",
+    "request_id",
+    "requested_checks",
+    "action",
+    "evidence",
+    "trusted_context"
+  ],
+  "title": "AssessmentRequest",
+  "type": "object"
+}

@@ -1,0 +1,67 @@
+# Polaris security review for GitLab merge requests.
+#
+#   include:
+#     - remote: https://raw.githubusercontent.com/hitheoai/polaris/v0.4.0/ci/gitlab/polaris.gitlab-ci.yml
+#
+# Hosted model (recommended): add a masked CI/CD variable POLARIS_API_KEY in the project's
+# settings. Nothing heavy is installed, and only functions with SQL or process calls are sent to
+# the Polaris API. To run the model on the runner instead, set POLARIS_MODEL_URL (and
+# POLARIS_MODEL_SHA256) and leave POLARIS_API_KEY unset.
+#
+# Findings appear in the merge request's Code Quality widget. The job fails on the results in
+# POLARIS_FAIL_ON (default: flagged).
+
+polaris-review:
+  stage: test
+  image: python:3.12-slim
+  variables:
+    POLARIS_PACKAGE: ""  # default theovex-polaris, with [model] when the model runs on the runner
+    POLARIS_MODEL_URL: ""
+    POLARIS_MODEL_SHA256: ""
+    POLARIS_ENGINE: "hybrid"
+    POLARIS_NO_MODEL: "fail"
+    POLARIS_FAIL_ON: "flagged"
+    POLARIS_TORCH_INDEX_URL: "https://download.pytorch.org/whl/cpu"
+    POLARIS_HOME: "$CI_PROJECT_DIR/.polaris-home"
+    GIT_DEPTH: "0"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  cache:
+    key: "polaris-model-$POLARIS_MODEL_SHA256"
+    paths:
+      - .polaris-home/models/
+  before_script:
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends git > /dev/null
+    - python -m pip install --quiet --upgrade pip
+    - |
+      if [ "$POLARIS_ENGINE" != "rules" ] && [ -z "${POLARIS_API_KEY:-}" ]; then
+        # The model runs on this runner, so it needs PyTorch and the model files.
+        if [ -n "$POLARIS_TORCH_INDEX_URL" ]; then
+          python -m pip install --quiet torch --index-url "$POLARIS_TORCH_INDEX_URL"
+        fi
+        python -m pip install --quiet "${POLARIS_PACKAGE:-theovex-polaris[model]}"
+        if [ -n "$POLARIS_MODEL_URL" ]; then
+          if [ -n "$POLARIS_MODEL_SHA256" ]; then
+            polaris model pull "$POLARIS_MODEL_URL" --sha256 "$POLARIS_MODEL_SHA256"
+          else
+            polaris model pull "$POLARIS_MODEL_URL"
+          fi
+        fi
+      else
+        python -m pip install --quiet "${POLARIS_PACKAGE:-theovex-polaris}"
+      fi
+  script:
+    - git fetch --no-tags --quiet origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - BASE="origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - if [ -n "${POLARIS_API_KEY:-}" ]; then POLARIS_MODEL_SOURCE=remote; else POLARIS_MODEL_SOURCE=local; fi
+    - >
+      polaris review --diff "$BASE...HEAD" --engine "$POLARIS_ENGINE" --no-model "$POLARIS_NO_MODEL"
+      --model-source "$POLARIS_MODEL_SOURCE" --device cpu --format codequality
+      --output gl-code-quality-report.json --fail-on none
+    - >
+      polaris review --diff "$BASE...HEAD" --engine "$POLARIS_ENGINE" --no-model "$POLARIS_NO_MODEL"
+      --model-source "$POLARIS_MODEL_SOURCE" --device cpu --fail-on "$POLARIS_FAIL_ON"
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json

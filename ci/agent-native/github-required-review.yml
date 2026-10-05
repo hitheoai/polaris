@@ -1,0 +1,55 @@
+# Install as a centrally controlled required workflow, not candidate-controlled enforcement.
+# See README.md: the isolated runner/control plane must already be provisioned.
+name: Polaris required static review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  polaris-required-review:
+    name: Polaris required static review
+    runs-on: [self-hosted, linux, x64, polaris-review-isolated]
+    timeout-minutes: 10
+    permissions: {}
+    steps:
+      # Deliberately no checkout, dependency installation, repository action, or cache.
+      - name: Independently review the exact approved Git revisions
+        shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+        env:
+          BASH_ENV: /dev/null
+          POLARIS_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          POLARIS_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          POLARIS_REPOSITORY: ${{ github.repository }}
+          POLARIS_RUN_ID: ${{ github.run_id }}:${{ github.run_attempt }}
+          POLARIS_OUTPUT: ${{ runner.temp }}/polaris-required-review
+        run: |
+          /usr/bin/env -i PATH=/usr/bin:/bin HOME=/nonexistent \
+            /usr/bin/python3 -I -S -c '
+          import os, stat, sys
+          from pathlib import Path
+          launcher = Path("/opt/polaris-ci/required_review.py")
+          if os.geteuid() == 0:
+              raise SystemExit(2)
+          for path in reversed((launcher, *launcher.parents)):
+              info = path.lstat()
+              if info.st_uid != 0 or info.st_mode & 0o022 or stat.S_ISLNK(info.st_mode):
+                  raise SystemExit(2)
+          if not stat.S_ISREG(launcher.lstat().st_mode):
+              raise SystemExit(2)
+          os.execv("/usr/bin/python3", ["/usr/bin/python3", "-I", "-S", str(launcher), *sys.argv[1:]])
+          ' \
+            --provider github --repository "$POLARIS_REPOSITORY" \
+            --run-id "$POLARIS_RUN_ID" \
+            --base-sha "$POLARIS_BASE_SHA" --head-sha "$POLARIS_HEAD_SHA" \
+            --output-dir "$POLARIS_OUTPUT"
+      - name: Preserve independent review evidence, including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: polaris-required-review-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/polaris-required-review/
+          if-no-files-found: error
+          retention-days: 7

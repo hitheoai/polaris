@@ -1,0 +1,127 @@
+# Polaris pull-request review: inline comments, re-verified one-click fixes and one summary.
+# Copy to .github/workflows/polaris-pr-review.yml and set the repository variable POLARIS_PACKAGE
+# to a pinned Polaris requirement. See docs/pr-bot.md.
+#
+# pull_request_target runs this file from the base branch with the base repository's token, so
+# reviews also work for pull requests from forks. The pull request is fetched as Git data only:
+# nothing from it is checked out, installed, built or executed. The analyze job has a read-only
+# token; the publish job has the write token, never sees repository content, and validates the
+# size-limited plan against this event before writing anything. Results are advisory: for a
+# required merge gate use the independent agent-native template (ci/agent-native/README.md).
+name: Polaris PR review
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+concurrency:
+  group: polaris-pr-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Review the change (read-only)
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      # The base branch: trusted code and configuration. Never the pull request's files.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch the pull request as Git objects (not checked out)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          auth=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')
+          echo "::add-mask::$auth"
+          GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" \
+            GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
+            git fetch --no-tags --no-recurse-submodules --quiet origin \
+            "+refs/pull/$PR_NUMBER/head:refs/remotes/polaris/pull-head"
+          test "$(git rev-parse --verify refs/remotes/polaris/pull-head)" = "$HEAD_SHA"
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Install Polaris outside the repository
+        working-directory: ${{ runner.temp }}
+        env:
+          POLARIS_PACKAGE: ${{ vars.POLARIS_PACKAGE }}
+        run: |
+          if [ -z "$POLARIS_PACKAGE" ]; then
+            echo "::error::Set the repository variable POLARIS_PACKAGE to a pinned Polaris requirement."
+            exit 1
+          fi
+          uv venv --no-config --python 3.12 polaris-env
+          uv pip install --no-config --python polaris-env/bin/python "$POLARIS_PACKAGE"
+
+      - name: Review the pull request and write the plan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/polaris-plan"
+          "$RUNNER_TEMP/polaris-env/bin/python" -I -m polaris pr plan --root "$GITHUB_WORKSPACE" \
+            --base "$BASE_SHA" --head "$HEAD_SHA" --repository "$REPOSITORY" --pr "$PR_NUMBER" \
+            --no-external-analyzers --output "$RUNNER_TEMP/polaris-plan/plan.json"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: polaris-pr-plan
+          path: ${{ runner.temp }}/polaris-plan/plan.json
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Publish review comments
+    needs: analyze
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Deliberately no checkout: this job holds the write token and reads only the plan.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: polaris-pr-plan
+          path: ${{ runner.temp }}/polaris-plan
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: false
+
+      - name: Install Polaris outside the repository
+        working-directory: ${{ runner.temp }}
+        env:
+          POLARIS_PACKAGE: ${{ vars.POLARIS_PACKAGE }}
+        run: |
+          if [ -z "$POLARIS_PACKAGE" ]; then
+            echo "::error::Set the repository variable POLARIS_PACKAGE to a pinned Polaris requirement."
+            exit 1
+          fi
+          uv venv --no-config --python 3.12 polaris-env
+          uv pip install --no-config --python polaris-env/bin/python "$POLARIS_PACKAGE"
+
+      - name: Publish the plan to this pull request
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          "$RUNNER_TEMP/polaris-env/bin/python" -I -m polaris pr publish \
+            --plan "$RUNNER_TEMP/polaris-plan/plan.json" --repository "$REPOSITORY" \
+            --pr "$PR_NUMBER" --head "$HEAD_SHA"

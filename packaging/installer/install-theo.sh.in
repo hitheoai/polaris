@@ -1,0 +1,124 @@
+#!/bin/bash
+# Generated into an immutable, checksum-addressed candidate by build_theo_release.py.
+# This template is not a published installer and cannot run before its pins are rendered.
+set -e
+umask 077
+export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+RELEASE_ID='@@RELEASE_ID@@'
+MANIFEST_SHA256='@@MANIFEST_SHA256@@'
+MANIFEST_BYTES='@@MANIFEST_BYTES@@'
+UV_NAME='@@UV_NAME@@'
+UV_SHA256='@@UV_SHA256@@'
+UV_BYTES='@@UV_BYTES@@'
+PYTHON_NAME='@@PYTHON_NAME@@'
+PYTHON_SHA256='@@PYTHON_SHA256@@'
+PYTHON_BYTES='@@PYTHON_BYTES@@'
+
+json=0
+for argument in "$@"; do [ "$argument" != --json ] || json=1; done
+fail() {
+    printf 'Theo: %s\n' "$1" >&2
+    if [ "$json" = 1 ]; then
+        printf '%s\n' '{"format":"polaris.onboarding/1","status":"error","code":"bootstrap_failed","message":"The verified bootstrap could not complete; inspect its safe diagnostic and rerun.","host_verified":false}'
+    fi
+    exit 2
+}
+[[ "$MANIFEST_SHA256" =~ ^[a-f0-9]{64}$ ]] || fail 'This is an unbuilt template, not a release installer.'
+[ "$(/usr/bin/uname -s)" = Darwin ] && [ "$(/usr/bin/uname -m)" = arm64 ] ||
+    fail 'This release supports Apple Silicon macOS only.'
+macos_version=$(/usr/bin/sw_vers -productVersion) ||
+    fail 'Could not establish the macOS version; installation was not started.'
+[[ "$macos_version" =~ ^([1-9][0-9]{0,2})\.[0-9]{1,3}(\.[0-9]{1,3})?$ ]] ||
+    fail 'Could not establish the macOS version; installation was not started.'
+[ "${BASH_REMATCH[1]}" -ge 15 ] ||
+    fail 'This release requires macOS 15.0 or later, including its bundled analyzer.'
+[ "$(/usr/bin/id -u)" != 0 ] || fail 'Run Theo as your normal account, never with sudo.'
+
+original=("$@")
+base_url='' release_dir='' prefix='' json=0 path_choice=''
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --base-url|--release-dir|--prefix)
+            [ "$#" -ge 2 ] || fail 'An installer option needs a value. Never supply a key as an argument.'
+            case "$1" in
+                --base-url) [ -z "$base_url" ] || fail 'Duplicate download origin.'; base_url="$2" ;;
+                --release-dir) [ -z "$release_dir" ] || fail 'Duplicate release directory.'; release_dir="$2" ;;
+                --prefix) prefix="$2" ;;
+            esac
+            shift 2 ;;
+        --add-path|--no-path)
+            [ -z "$path_choice" ] || fail 'Choose --add-path or --no-path only once.'
+            path_choice="$1"; shift ;;
+        --install-only) shift ;;
+        --json) json=1; shift ;;
+        --help)
+            printf '%s\n' 'Usage: bash install-theo.sh (--base-url HTTPS_ORIGIN | --release-dir ABSOLUTE_DIRECTORY) [--prefix ABSOLUTE_PATH] [--add-path | --no-path] [--json]' \
+                'Installs the polaris and theo CLI commands only. No project, editor setup or API activation is performed.' \
+                'Shell profiles are unchanged unless --add-path is explicitly supplied. Use theo setup --local separately.'
+            exit 0 ;;
+        --project|--host|--local|--api-url)
+            fail 'Installation no longer configures projects. Install the CLI first, then run theo setup separately.' ;;
+        *) fail 'Unknown installer option. Use --help; never put an API key in an argument.' ;;
+    esac
+done
+if [ -n "$base_url" ]; then
+    [ -z "$release_dir" ] || fail 'Choose --base-url or --release-dir, not both.'
+    [[ "$base_url" =~ ^https://[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?(:[0-9]{1,5})?/?$ ]] ||
+        fail 'Use a credential-free HTTPS download origin without a path or query.'
+    base_url="${base_url%/}"
+else
+    case "$release_dir" in /*) ;; *) fail 'Supply an absolute local --release-dir or an approved --base-url.' ;; esac
+    [ -d "$release_dir" ] && [ ! -L "$release_dir" ] || fail 'The local release directory is unavailable or a symlink.'
+fi
+if [ -n "$prefix" ]; then
+    case "$prefix" in /*) ;; *) fail '--prefix must be absolute.' ;; esac
+fi
+
+stage=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/theo-bootstrap.XXXXXXXX")
+# Canonicalize only our freshly claimed private temporary directory, not user-selected paths.
+stage=$(cd "$stage" && /bin/pwd -P)
+cleanup() {
+    # This exact private mktemp directory is the only bootstrap path removed.
+    [ -n "$stage" ] && [ -d "$stage" ] && [ ! -L "$stage" ] && /bin/rm -rf -- "$stage"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM HUP
+
+verify() {
+    [ -f "$1" ] && [ ! -L "$1" ] || fail 'An artifact is not a regular file.'
+    [ "$(/usr/bin/stat -f %z "$1")" = "$3" ] || fail 'An artifact has the wrong byte length; nothing from it will run.'
+    observed=$(/usr/bin/shasum -a 256 "$1")
+    [ "${observed%% *}" = "$2" ] || fail 'An artifact failed its SHA256 check; nothing from it will run.'
+}
+fetch() {
+    if [ -n "$release_dir" ]; then
+        [ ! -L "$release_dir/$1" ] || fail 'A local artifact is a symlink.'
+        /bin/cp "$release_dir/$1" "$stage/$1" || fail 'A required local release artifact is missing.'
+    else
+        /usr/bin/curl -q --fail --silent --show-error --proto '=https' --connect-timeout 15 --max-time 300 \
+            --retry 2 --max-filesize "$3" --output "$stage/$1" "$base_url/releases/$RELEASE_ID/$1" ||
+            fail 'Could not fetch the immutable release artifact. Rerun the same installer to retry.'
+    fi
+    verify "$stage/$1" "$2" "$3"
+}
+[ "$json" = 1 ] || printf '%s\n' 'THEO · Preparing your private runtime (no system Python or Homebrew).' >&2
+fetch manifest.json "$MANIFEST_SHA256" "$MANIFEST_BYTES"
+fetch "$UV_NAME" "$UV_SHA256" "$UV_BYTES"
+fetch "$PYTHON_NAME" "$PYTHON_SHA256" "$PYTHON_BYTES"
+# Runtime archives are exact inspected upstream or explicitly signed-derivative pins.
+/usr/bin/tar -xzf "$stage/$UV_NAME" -C "$stage"
+/usr/bin/tar -xzf "$stage/$PYTHON_NAME" -C "$stage"
+/bin/cat > "$stage/install.py" <<'THEO_PRIVATE_INSTALLER_PYTHON'
+@@INSTALLER_SOURCE@@
+THEO_PRIVATE_INSTALLER_PYTHON
+cd "$stage"
+program=''
+case "${TERM_PROGRAM:-}" in WarpTerminal|warp|vscode|cursor|windsurf) program="$TERM_PROGRAM" ;; esac
+/usr/bin/env -i HOME="$HOME" USER="${USER:-}" SHELL="${SHELL:-/bin/zsh}" TERM="${TERM:-dumb}" \
+    NO_COLOR="${NO_COLOR:-}" PATH=/usr/bin:/bin:/usr/sbin:/sbin TMPDIR="$stage" \
+    TERM_PROGRAM="$program" CLAUDECODE="${CLAUDECODE:+1}" CLAUDE_CODE_ENTRYPOINT="${CLAUDE_CODE_ENTRYPOINT:+detected}" \
+    CURSOR_SESSION_ID="${CURSOR_SESSION_ID:+detected}" CURSOR_TRACE_ID="${CURSOR_TRACE_ID:+detected}" \
+    CODEX_THREAD_ID="${CODEX_THREAD_ID:+detected}" CODEX_SESSION_ID="${CODEX_SESSION_ID:+detected}" \
+    WINDSURF_SESSION_ID="${WINDSURF_SESSION_ID:+detected}" \
+    "$stage/python/bin/python3.11" -I -B "$stage/install.py" \
+    --bootstrap-root "$stage" --manifest-sha256 "$MANIFEST_SHA256" "${original[@]}"

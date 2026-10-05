@@ -1,0 +1,94 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "theovex-polaris"
+version = "0.4.0"
+description = "Offline, versioned security assessments for engineering agents; never authorization."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = [
+    "pydantic>=2.10,<3",
+    # GitHub Actions workflows are composed (never constructed) with a bounded SafeLoader.
+    "pyyaml>=6.0,<7",
+    "tomlkit>=0.13,<1",
+    "tree-sitter>=0.25,<0.27",
+    "tree-sitter-javascript>=0.25,<0.26",
+    "tree-sitter-rust>=0.24,<0.25",
+    "tree-sitter-typescript>=0.23.2,<0.24",
+]
+
+[project.optional-dependencies]
+# The qualified analyzer is delivered only in separate managed macOS environments.
+# There is intentionally no public/source analysis extra or upstream fallback.
+# What reviewing with a model needs (the public package offers the same extra).
+model = [
+    "numpy>=1.26,<3",
+    "safetensors>=0.5,<1",
+    "torch>=2.6,<3",
+    "transformers>=4.57.6,<5",
+]
+train = [
+    "numpy>=1.26,<3",
+    "safetensors>=0.5,<1",
+    "torch>=2.6,<3",
+    "transformers>=4.57.6,<5",
+]
+browser = ["playwright>=1.51,<2"]
+export = ["onnx>=1.17,<2", "onnxruntime>=1.20,<2"]
+lab = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+api = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1"]
+mcp = ["mcp>=2.2,<3"]
+# `polaris tui`: the interactive terminal view. Minor releases have changed behavior (8.2's ANSI
+# themes), so it is pinned to one minor version and covered by golden screenshots.
+tui = ["textual>=8.2.8,<8.3"]
+
+[project.scripts]
+polaris = "polaris.cli:main"
+theo = "polaris.onboarding.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<10",
+    "hypothesis>=6.120,<7",
+    "jsonschema>=4.23,<5",
+    "ruff>=0.11,<1",
+    "mypy>=1.15,<2",
+    "httpx>=0.28,<1",
+    "pyyaml>=6.0,<7",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/polaris"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+markers = [
+    "ml: optional, offline neural-network smoke tests",
+    "browser: local browser end-to-end tests",
+    "cuda: requires an explicitly available CUDA device",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# Hand-written benchmark cases deliberately contain the risky patterns Polaris looks for.
+extend-exclude = ["benchmarks/challenge", "benchmarks/challenge-holdout"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/polaris"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[tool.uv]
+default-groups = ["dev"]

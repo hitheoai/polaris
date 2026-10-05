@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:polaris:compliance-resolution:1",
+  "title": "Local compliance decisions, never self-authorizing release evidence",
+  "description": "Structural schema only. The offline verifier additionally replays actual bundle observations, validates complete computed file scopes, owner-approved external authority, role capabilities, current freshness, evidence purposes and exact advisory/provider bindings. No document validates its own authorization.",
+  "oneOf": [
+    {"$ref": "#/$defs/ledger"},
+    {"$ref": "#/$defs/authorization"}
+  ],
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$"},
+    "time": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T[0-9:.]+Z$"},
+    "domain": {"enum": ["technical", "legal", "security"]},
+    "identifiers": {
+      "type": "array", "maxItems": 20000, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/identifier"}
+    },
+    "digests": {
+      "type": "array", "maxItems": 20000, "uniqueItems": true,
+      "items": {"$ref": "#/$defs/digest"}
+    },
+    "release": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "version", "platform"],
+      "properties": {
+        "id": {"type": "string"},
+        "version": {"type": "string"},
+        "platform": {"type": "string"}
+      }
+    },
+    "artifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["name", "bytes", "sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "bytes": {"type": "integer", "minimum": 0},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "release", "inputArtifacts", "observationReportSha256", "inventorySha256",
+        "policySha256", "toolManifestSha256", "observationSetSha256"
+      ],
+      "properties": {
+        "release": {"$ref": "#/$defs/release"},
+        "inputArtifacts": {
+          "type": "array", "minItems": 6, "maxItems": 6, "uniqueItems": true,
+          "items": {"$ref": "#/$defs/artifact"}
+        },
+        "observationReportSha256": {"$ref": "#/$defs/digest"},
+        "inventorySha256": {"$ref": "#/$defs/digest"},
+        "policySha256": {"$ref": "#/$defs/digest"},
+        "toolManifestSha256": {"$ref": "#/$defs/digest"},
+        "observationSetSha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "subject": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "kind", "location", "name", "version", "parent", "sha256", "hashScope"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "minLength": 1},
+        "location": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "version": {"type": ["string", "null"]},
+        "parent": {"type": ["string", "null"]},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "hashScope": {"enum": ["supplied-file", "metadata", "declaration"]}
+      }
+    },
+    "file": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["location", "sha256", "bytes", "kind", "parent"],
+          "properties": {
+            "location": {"type": "string", "minLength": 1},
+            "sha256": {"$ref": "#/$defs/digest"},
+            "bytes": {"type": "integer", "minimum": 0},
+            "kind": {"const": "file"},
+            "parent": {"type": "string", "minLength": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["location", "kind", "target", "parent"],
+          "properties": {
+            "location": {"type": "string", "minLength": 1},
+            "kind": {"const": "link"},
+            "target": {"type": "string", "minLength": 1},
+            "parent": {"type": "string", "minLength": 1}
+          }
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["file", "bytes", "sha256", "kind", "retrievedAt", "observationIds", "fileScopeSha256s"],
+      "properties": {
+        "file": {"type": "string", "pattern": "^[a-f0-9]{64}\\.data$"},
+        "bytes": {"type": "integer", "minimum": 1},
+        "sha256": {"$ref": "#/$defs/digest"},
+        "kind": {
+          "enum": [
+            "build-provenance", "source-manifest", "source-delivery", "original-notice",
+            "license-review", "advisory-review", "review-analysis"
+          ]
+        },
+        "retrievedAt": {"$ref": "#/$defs/time"},
+        "observationIds": {"allOf": [{"$ref": "#/$defs/identifiers"}], "minItems": 1},
+        "fileScopeSha256s": {"allOf": [{"$ref": "#/$defs/digests"}], "minItems": 1}
+      }
+    },
+    "decision": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "id", "observationId", "subject", "obligationCode", "domain", "scopeSha256",
+        "sourceEvidenceIds", "advisoryIds", "evidenceSha256s", "outcome", "rationale",
+        "reviewer", "reviewedAt", "expiresAt"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/identifier"},
+        "observationId": {"type": "string", "pattern": "^observation-[a-f0-9]{64}$"},
+        "subject": {"$ref": "#/$defs/subject"},
+        "obligationCode": {"type": "string", "minLength": 1},
+        "domain": {"$ref": "#/$defs/domain"},
+        "scopeSha256": {"$ref": "#/$defs/digest"},
+        "sourceEvidenceIds": {"$ref": "#/$defs/identifiers"},
+        "advisoryIds": {"$ref": "#/$defs/identifiers"},
+        "evidenceSha256s": {"allOf": [{"$ref": "#/$defs/digests"}], "minItems": 1},
+        "outcome": {"enum": ["verified", "authorized", "reviewed-no-matches", "not-affected", "remediated", "accepted-risk"]},
+        "rationale": {"type": "string", "minLength": 20, "maxLength": 20000},
+        "reviewer": {"$ref": "#/$defs/identifier"},
+        "reviewedAt": {"$ref": "#/$defs/time"},
+        "expiresAt": {"$ref": "#/$defs/time"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"domain": {"const": "technical"}}},
+          "then": {"properties": {"outcome": {"const": "verified"}}}
+        },
+        {
+          "if": {"properties": {"domain": {"const": "legal"}}},
+          "then": {"properties": {"outcome": {"const": "authorized"}}}
+        },
+        {
+          "if": {"properties": {"domain": {"const": "security"}}},
+          "then": {"properties": {"outcome": {"enum": ["reviewed-no-matches", "not-affected", "remediated", "accepted-risk"]}}}
+        }
+      ]
+    },
+    "ledger": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format", "binding", "fileScopes", "evidence", "decisions"],
+      "properties": {
+        "format": {"const": "polaris.compliance-resolution-ledger/1"},
+        "binding": {"$ref": "#/$defs/binding"},
+        "fileScopes": {
+          "type": "object", "maxProperties": 20000,
+          "propertyNames": {"$ref": "#/$defs/digest"},
+          "additionalProperties": {
+            "type": "array", "minItems": 1, "maxItems": 100000, "uniqueItems": true,
+            "items": {"$ref": "#/$defs/file"}
+          }
+        },
+        "evidence": {"type": "array", "maxItems": 20000, "items": {"$ref": "#/$defs/evidence"}},
+        "decisions": {"type": "array", "maxItems": 60000, "items": {"$ref": "#/$defs/decision"}}
+      }
+    },
+    "authorization": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "format", "ledgerSha256", "authorizedReviewers", "approvedAt", "expiresAt",
+        "maxReviewAgeSeconds", "maxAdvisoryAgeSeconds"
+      ],
+      "properties": {
+        "format": {"const": "polaris.compliance-owner-authorization/1"},
+        "ledgerSha256": {"$ref": "#/$defs/digest"},
+        "authorizedReviewers": {
+          "type": "object", "minProperties": 1, "maxProperties": 1000,
+          "propertyNames": {"$ref": "#/$defs/identifier"},
+          "additionalProperties": {
+            "type": "array", "minItems": 1, "maxItems": 3, "uniqueItems": true,
+            "items": {"$ref": "#/$defs/domain"}
+          }
+        },
+        "approvedAt": {"$ref": "#/$defs/time"},
+        "expiresAt": {"$ref": "#/$defs/time"},
+        "maxReviewAgeSeconds": {
+          "type": "object", "additionalProperties": false,
+          "required": ["technical", "legal", "security"],
+          "properties": {
+            "technical": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+            "legal": {"type": "integer", "minimum": 1, "maximum": 2147483647},
+            "security": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+          }
+        },
+        "maxAdvisoryAgeSeconds": {"type": "integer", "minimum": 1, "maximum": 2147483647}
+      }
+    }
+  }
+}
