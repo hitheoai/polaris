@@ -21,6 +21,19 @@ REASONS = {
     "not_reproduced_in_isolation": "Polaris couldn't reproduce the problem on its own to test the fix",
     "carriage_returns": "the file uses Windows line endings, which fixes don't support yet",
     "secret_detected": "the fix involved something that looks like a secret",
+    "ai_not_approved_for_this_file": "you didn't allow this file to be sent to the AI",
+    "ai_changed_other_files": "the AI changed more than the file with the problem",
+    "ai_invalid_candidate": "the AI's answer wasn't a usable fix",
+    "ai_invalid_response": "the AI's answer couldn't be read",
+    "ai_secret_detected": "the file or the AI's answer contained something that looks like a secret, so it was not used",
+    "ai_refused": "the AI declined to answer",
+    "ai_timeout": "the AI didn't answer in time",
+    "ai_provider_error": "the AI service returned an error",
+    "ai_context_limit": "the file is too large to send to the AI",
+    "ai_token_budget": "the file is too large for the AI's size limit",
+    "ai_output_limit": "the AI's answer was too long",
+    "ai_redirect_rejected": "the AI service tried to redirect the request, which Polaris never follows",
+    "ai_hosted_not_enabled": "your AI settings don't allow a hosted service",
 }
 
 
@@ -51,7 +64,8 @@ def render_plan(plan: FixPlan, *, diffs: bool = True) -> str:
     lines = [f"Polaris fix · {plan.scope_label}", head]
     for number, item in enumerate((item for item in plan.items if item.status == "verified"), 1):
         lines += ["", f"{number}. {clean(item.title)} · {clean(item.path)}:{item.line}",
-                  f"   Fix ({item.origin}): {reason_text(item.reason)}. {item.changed_lines} line"
+                  f"   Fix ({'AI suggestion' if item.origin == 'ai' else item.origin}): {reason_text(item.reason)}. "
+                  f"{item.changed_lines} line"
                   f"{'s' if item.changed_lines != 1 else ''} changed."]
         if diffs:
             lines += diff_lines(item)

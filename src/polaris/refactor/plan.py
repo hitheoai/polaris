@@ -27,7 +27,7 @@ from polaris.integrations._safe import IntegrationProblem
 from polaris.integrations.forge.verify import MEMORY_ONLY, Reverifier
 from polaris.jsonio import digest_text
 from polaris.refactor.gates import MAX_CHANGED_LINES, WINDOW, scope_problem
-from polaris.refactor.generators import Candidate, Generator
+from polaris.refactor.generators import Candidate, Declined, Generator
 from polaris.refactor.models import Attempt, FixCounts, FixItem, FixPlan
 from polaris.review import catalog
 from polaris.review.analyzers import AnalysisRuntime
@@ -106,7 +106,10 @@ def build_plan(
             candidate = generator(finding, text)
             if candidate is None:
                 continue
-
+            if isinstance(candidate, Declined):
+                attempts.append(Attempt(origin=candidate.origin, name=candidate.name[:200] or "unnamed",
+                                        status="rejected", reason=candidate.reason[:200] or "unknown"))
+                continue
             if candidate.path != finding.path:
                 attempts.append(_attempt(candidate, "rejected", "edits_another_file"))
                 continue
