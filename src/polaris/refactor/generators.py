@@ -26,10 +26,19 @@ class Candidate:
     rationale: str
 
 
+@dataclass(frozen=True)
+class Declined:
+    """A generator that tried and couldn't: recorded in the plan with its reason, never hidden."""
+
+    origin: Origin
+    name: str
+    reason: str
+
+
 class Generator(Protocol):
     origin: Origin
 
-    def __call__(self, finding: WorkflowFinding, text: str) -> Candidate | None: ...
+    def __call__(self, finding: WorkflowFinding, text: str) -> Candidate | Declined | None: ...
 
 
 class SuggestedEdit:

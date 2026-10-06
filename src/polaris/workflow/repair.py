@@ -62,6 +62,11 @@ def _context(review_digest: str, manifest: CapabilityManifest,
     )
 
 
+def supplied_context(report: WorkflowEnvelope, config: WorkflowReviewConfig, runtime: AnalysisRuntime) -> ReviewContext:
+    """The review context for content supplied by value, bound to an existing review."""
+    return _context(report.snapshot.digest, report.review.capabilities, config, None, runtime)
+
+
 def _references(report: WorkflowEnvelope, candidate: CandidateRequest) -> tuple[FindingReference, ...]:
     available = {item.finding_id: item for item in report.review.findings if item.result == "flagged"}
     refs: dict[str, FindingReference] = {}

@@ -48,6 +48,7 @@ REQUIRED = ("cli.py", "review/engine.py", "api/app.py", "mcp/server.py", "instal
             "check/state.py", "check/brand.py", "check/brand_site.py",
             "refactor/cli.py", "refactor/plan.py", "refactor/apply.py", "refactor/generators.py",
             "refactor/codemods.py", "refactor/gates.py", "refactor/models.py", "refactor/render.py",
+            "refactor/ai.py", "refactor/aiconfig.py",
             "engineering/models.py", "engineering/apply.py", "engineering/generation.py",
             "integrations/freshness.py", "integrations/hooks.py", "integrations/doctor.py",
             "review/capabilities.py", "review/analyzers/semgrep.py", "review/analyzers/rule_pack.py",
