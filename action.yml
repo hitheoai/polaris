@@ -43,7 +43,7 @@ inputs:
     required: true
   version:
     description: The exact Polaris version to install from PyPI. The default is the version this release of the action was made with.
-    default: "0.4.0"
+    default: "0.5.0"
   fail-on:
     description: "When `publish` fails its job: `never` (the default: comments only, advice), `findings` (a flagged high or critical finding on a changed line) or `incomplete` (also when part of the review could not finish)."
     default: never
@@ -71,7 +71,7 @@ runs:
           *) echo "::error::The 'fail-on' input must be never, findings or incomplete."; exit 1 ;;
         esac
         if ! printf '%s' "$POLARIS_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.+-]*$'; then
-          echo "::error::The 'version' input must be an exact Polaris version such as 0.4.0."
+          echo "::error::The 'version' input must be an exact Polaris version such as 0.5.0."
           exit 1
         fi
         if [ -z "$PR_NUMBER" ]; then

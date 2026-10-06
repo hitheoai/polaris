@@ -63,7 +63,7 @@ polaris check --json           # the full result, for an AI agent or a script
   and build folders such as `node_modules`.
 - **`--limit N`** shows up to N problems in full (1 to 50, default 25); the rest are counted.
 
-The full guide is in [docs/check.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/check.md).
+The full guide is in [docs/check.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/check.md).
 
 ## Fix what it finds
 
@@ -79,7 +79,7 @@ run, so run them after applying. By default no AI model is used and nothing leav
 If you want it, `polaris fix --ai` asks an AI model you choose (set in `~/.polaris/ai.toml`, with
 the key in an environment variable) about problems Polaris has no fix for. You see which files would
 be sent, and where, before anything is sent, and the answer must pass the same checks. It never runs
-in CI. See [docs/fix.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/fix.md).
+in CI. See [docs/fix.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/fix.md).
 
 ## Use it with your AI agent
 
@@ -111,7 +111,7 @@ and the files Polaris couldn't check.
 Using Warp? `polaris setup warp --theme` also adds two Warp themes that match Polaris, Polaris
 North (dark) and Polaris Paper (light). For the same look, set Warp's font to IBM Plex Mono.
 
-Editor-by-editor steps are in [docs/ide.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/ide.md).
+Editor-by-editor steps are in [docs/ide.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/ide.md).
 
 ## Pull-request comments
 
@@ -126,7 +126,7 @@ polaris pr plan --root . --base origin/main --head HEAD --repository owner/name 
   --no-external-analyzers --format markdown
 ```
 
-See [docs/pr-bot.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/pr-bot.md).
+See [docs/pr-bot.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/pr-bot.md).
 
 ## What it checks
 
@@ -152,20 +152,20 @@ Dockerfiles. It looks for sixteen kinds of problems:
 
 These are static checks of known patterns, not a full security audit. Polaris never runs,
 imports or builds your code. Code in other languages is listed as not checked. Exactly what each
-check looks for is in [docs/analyzers.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/analyzers.md).
+check looks for is in [docs/analyzers.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/analyzers.md).
 
 ## More
 
 - `polaris tui`: the expert view, with every finding's path through the code, a coverage map and
-  fix previews ([docs/tui.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/tui.md)).
+  fix previews ([docs/tui.md](https://github.com/hitheoai/polaris/blob/v0.5.0/docs/tui.md)).
 - `polaris workflow review`: the full technical review behind `polaris check`, with JSON, SARIF
   and Code Quality output for CI.
 - `polaris --help` lists every command.
-- What's new: [CHANGELOG.md](https://github.com/hitheoai/polaris/blob/v0.4.0/CHANGELOG.md). Source
+- What's new: [CHANGELOG.md](https://github.com/hitheoai/polaris/blob/v0.5.0/CHANGELOG.md). Source
   code and issues: [github.com/hitheoai/polaris](https://github.com/hitheoai/polaris).
 
 ## License
 
 Polaris is licensed under Apache-2.0
-([LICENSE](https://github.com/hitheoai/polaris/blob/v0.4.0/LICENSE)). Third-party components keep
+([LICENSE](https://github.com/hitheoai/polaris/blob/v0.5.0/LICENSE)). Third-party components keep
 their own licenses.

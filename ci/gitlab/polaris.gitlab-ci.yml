@@ -1,7 +1,7 @@
 # Polaris security review for GitLab merge requests.
 #
 #   include:
-#     - remote: https://raw.githubusercontent.com/hitheoai/polaris/v0.4.0/ci/gitlab/polaris.gitlab-ci.yml
+#     - remote: https://raw.githubusercontent.com/hitheoai/polaris/v0.5.0/ci/gitlab/polaris.gitlab-ci.yml
 #
 # Hosted model (recommended): add a masked CI/CD variable POLARIS_API_KEY in the project's
 # settings. Nothing heavy is installed, and only functions with SQL or process calls are sent to
