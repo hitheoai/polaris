@@ -69,10 +69,10 @@ a blanket no-disk-write promise for every workflow configuration.
 
 ## Editors
 
-The development source's `polaris setup cursor` (or `warp`, `claude-code`, `vscode`,
-`windsurf`) generates an MCP launch pinned to `--model-source local`. Signing in does not
-silently enable hosted inference for that generated server. Older or manually configured
-launches may still use `auto`; inspect the actual configuration.
+`polaris setup cursor` (or `warp`, `claude-code`, `vscode`, `windsurf`) generates an MCP
+launch pinned to `--model-source local`. Signing in does not silently enable hosted inference
+for that generated server. Older or manually configured launches may still use `auto`;
+inspect the actual configuration.
 
 For hosted legacy second opinions, explicitly select `--model-source remote` and a
 model-capable legacy engine (`hybrid` or `model`) in the approved server launch, preserving
