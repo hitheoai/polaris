@@ -135,12 +135,12 @@ second opinion. The job fails only on the results you choose with `fail-on` (def
 
 ### GitHub Actions
 
-A packaged GitHub Action isn't published yet. For pull requests on GitHub, use the
-[pull-request review template](../ci/github/polaris-pr-review.yml) ([guide](pr-bot.md)). To run
-this legacy review in your own workflow instead, install the package in a step and run
-`polaris review`, as the GitLab template below does. Pass the hosted model's key as
-`POLARIS_API_KEY` from a repository secret through the step's `env`, never by interpolating it
-into the script.
+For pull requests on GitHub, use the `hitheoai/polaris@v1` action ([guide](pr-bot.md#set-it-up)),
+or the [workflow template](../ci/github/polaris-pr-review.yml) it is built from. Neither runs
+the legacy two-check review described here. To run the legacy review in your own workflow,
+install the package in a step and run `polaris review`, as the GitLab template below does. Pass
+the hosted model's key as `POLARIS_API_KEY` from a repository secret through the step's `env`,
+never by interpolating it into the script.
 
 ### GitLab CI
 

@@ -1,0 +1,162 @@
+name: Polaris security review
+description: Review pull requests for security problems with Polaris, a free security check that runs on your own runner. No account, no model and no API key.
+author: TheoVex
+branding:
+  icon: shield
+  color: blue
+
+# Polaris reviews a pull request in two jobs, so the job that reads the code never holds a write
+# token. Add this workflow to your default branch (see docs/pr-bot.md):
+#
+#   name: Polaris
+#   on:
+#     pull_request_target:
+#       types: [opened, synchronize, reopened, ready_for_review]
+#   permissions: {}
+#   jobs:
+#     analyze:
+#       if: github.event.pull_request.draft == false
+#       runs-on: ubuntu-latest
+#       permissions: {contents: read}
+#       steps:
+#         - uses: hitheoai/polaris@v1
+#           with: {mode: analyze}
+#     publish:
+#       needs: analyze
+#       runs-on: ubuntu-latest
+#       permissions: {contents: read, pull-requests: write}
+#       steps:
+#         - uses: hitheoai/polaris@v1
+#           with: {mode: publish}
+#
+# `analyze` checks out the base branch, fetches the pull request as Git data only (nothing from it
+# is checked out, installed, built or executed), installs a pinned Polaris outside the repository
+# and writes a review plan. `publish` downloads only that plan, never checks out the repository,
+# and posts it to the pull request. Results are advice, not a merge gate.
+#
+# Every action is pinned to a full commit, and every input reaches a shell script through an
+# environment variable, never by `${{ }}` interpolation.
+
+inputs:
+  mode:
+    description: "`analyze` (needs `contents: read`) reviews the pull request and saves a plan; `publish` (needs `pull-requests: write`) posts that plan. Run them as two separate jobs."
+    required: true
+  version:
+    description: The exact Polaris version to install from PyPI. The default is the version this release of the action was made with.
+    default: "0.4.0"
+  fail-on:
+    description: "When `publish` fails its job: `never` (the default: comments only, advice), `findings` (a flagged high or critical finding on a changed line) or `incomplete` (also when part of the review could not finish)."
+    default: never
+  token:
+    description: The GitHub token. The default, the workflow's own token, is what you want.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the inputs and the event
+      shell: bash
+      env:
+        POLARIS_MODE: ${{ inputs.mode }}
+        POLARIS_VERSION: ${{ inputs.version }}
+        POLARIS_FAIL_ON: ${{ inputs.fail-on }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: |
+        case "$POLARIS_MODE" in
+          analyze | publish) ;;
+          *) echo "::error::The 'mode' input must be analyze or publish."; exit 1 ;;
+        esac
+        case "$POLARIS_FAIL_ON" in
+          never | findings | incomplete) ;;
+          *) echo "::error::The 'fail-on' input must be never, findings or incomplete."; exit 1 ;;
+        esac
+        if ! printf '%s' "$POLARIS_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+[A-Za-z0-9.+-]*$'; then
+          echo "::error::The 'version' input must be an exact Polaris version such as 0.4.0."
+          exit 1
+        fi
+        if [ -z "$PR_NUMBER" ]; then
+          echo "::error::Run this action on pull_request or pull_request_target events."
+          exit 1
+        fi
+
+    # ---- analyze: read-only -----------------------------------------------------------------
+
+    # The base branch: trusted code and configuration. Never the pull request's files.
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      if: inputs.mode == 'analyze'
+      with:
+        persist-credentials: false
+        fetch-depth: 0
+
+    - name: Fetch the pull request as Git objects (not checked out)
+      if: inputs.mode == 'analyze'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      run: |
+        auth=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')
+        echo "::add-mask::$auth"
+        GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.$GITHUB_SERVER_URL/.extraheader" \
+          GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
+          git fetch --no-tags --no-recurse-submodules --quiet origin \
+          "+refs/pull/$PR_NUMBER/head:refs/remotes/polaris/pull-head"
+        test "$(git rev-parse --verify refs/remotes/polaris/pull-head)" = "$HEAD_SHA"
+
+    - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      with:
+        enable-cache: false
+
+    - name: Install Polaris outside the repository
+      shell: bash
+      working-directory: ${{ runner.temp }}
+      env:
+        POLARIS_VERSION: ${{ inputs.version }}
+      run: |
+        uv venv --no-config --python 3.12 polaris-env
+        uv pip install --no-config --python polaris-env/bin/python "theovex-polaris==$POLARIS_VERSION"
+
+    - name: Review the pull request and write the plan
+      if: inputs.mode == 'analyze'
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/polaris-plan"
+        "$RUNNER_TEMP/polaris-env/bin/python" -I -m polaris pr plan --root "$GITHUB_WORKSPACE" \
+          --base "$BASE_SHA" --head "$HEAD_SHA" --repository "$REPOSITORY" --pr "$PR_NUMBER" \
+          --no-external-analyzers --output "$RUNNER_TEMP/polaris-plan/plan.json"
+
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      if: inputs.mode == 'analyze'
+      with:
+        name: polaris-pr-plan
+        path: ${{ runner.temp }}/polaris-plan/plan.json
+        if-no-files-found: error
+        retention-days: 3
+
+    # ---- publish: holds the write token, never checks out the repository --------------------
+
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      if: inputs.mode == 'publish'
+      with:
+        name: polaris-pr-plan
+        path: ${{ runner.temp }}/polaris-plan
+
+    - name: Publish the plan to this pull request
+      if: inputs.mode == 'publish'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPOSITORY: ${{ github.repository }}
+        POLARIS_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        "$RUNNER_TEMP/polaris-env/bin/python" -I -m polaris pr publish \
+          --plan "$RUNNER_TEMP/polaris-plan/plan.json" --repository "$REPOSITORY" \
+          --pr "$PR_NUMBER" --head "$HEAD_SHA" --fail-on "$POLARIS_FAIL_ON"
