@@ -1,7 +1,7 @@
 # Polaris review format
 
-There are separate versioned contracts. The development workflow does not silently change
-the legacy Python review or experimental classifier:
+There are separate versioned contracts. The workflow does not silently change the legacy
+Python review or experimental classifier:
 
 - `polaris.check/1`: the plain-language result of `polaris check --json`, the MCP
   `polaris_check` tool and the agent hooks, built from a workflow review. It is what agents
@@ -15,8 +15,8 @@ the legacy Python review or experimental classifier:
   `review_changes` / `review_code`, and the existing GitHub/GitLab integrations.
 - `polaris.assessment/0.1.0`: the separate experimental assessment/model contract.
 
-Expanded static support is development source implementation, not a new published release,
-expanded classifier qualification, or measured security/repair accuracy.
+Expanded static support does not qualify the classifier, and it is not a measure of security
+or repair accuracy.
 
 ## Agent-native workflow
 

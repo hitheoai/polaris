@@ -1,15 +1,14 @@
 # Polaris REST API
 
-`polaris serve` exposes two separate surfaces in the development source:
+`polaris serve` exposes two separate surfaces:
 
 - `/v1/workflow/*`: bounded static Python/JavaScript/TypeScript review, host-candidate repair
   proposals and non-executing typed action assessment. No model is needed.
 - `/v1/review` and `/v1/assess*`: the existing Python/two-check review and experimental
   classifier contracts, unchanged by the broader workflow.
 
-This documents implemented source, not publication of a new API release. You can run the
-server on your own machine, or let other machines use it with API keys, behind your own TLS
-reverse proxy.
+You can run the server on your own machine, or let other machines use it with API keys,
+behind your own TLS reverse proxy.
 It parses submitted code without importing/running it, defaults to memory-only analysis,
 and does not log or persist request bodies. An administrator may explicitly permit private
 transient analyzer files; callers cannot opt in through a request. Proposal responses contain
@@ -26,12 +25,12 @@ from an AI agent in your editor, use [`polaris check`](check.md) and the MCP too
 ## Start the server
 
 ```sh
-# From a trusted source checkout, in an application environment:
-python -m pip install '.[api]'
+# In an application environment:
+python -m pip install 'theovex-polaris[api]'
 polaris serve --rules-only              # http://127.0.0.1:8780, memory-only workflow
 ```
 
-The source workflow's default required checks include Semgrep-dependent patterns. A
+The workflow's default required checks include Semgrep-dependent patterns. A
 memory-only server therefore reports incomplete coverage for those checks, not a clean
 multi-language scan. To permit external analysis, obtain the exact managed macOS ARM64 analyzer separately
 as described in [analyzer installation](analyzers.md#analyzer-installation-and-data-boundary), arrange a
@@ -311,7 +310,7 @@ comma-separated `id:salt:hash` entries (printed by `keys create`); it never take
 
 ## Clients
 
-The development clients expose the new workflow separately from legacy methods.
+The clients expose the workflow separately from legacy methods.
 Python accepts a corresponding typed request model or mapping and returns typed models:
 
 ```python

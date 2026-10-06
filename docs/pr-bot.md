@@ -6,8 +6,8 @@ re-review has confirmed, and one summary comment that also lists what was **not*
 runs on your own GitHub Actions runner with the built-in analyzers: no Polaris service, account,
 model or API key is involved, and repository content is not sent anywhere.
 
-This is development source, not a published release. Comments are review evidence, not proof
-of exploitability or safety, and not approval to merge. Behavioral tests are never run.
+Comments are review evidence, not proof of exploitability or safety, and not approval to
+merge. Behavioral tests are never run.
 
 To check your code on your own computer before you open a pull request, use
 [`polaris check`](check.md).

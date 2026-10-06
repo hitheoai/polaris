@@ -18,11 +18,11 @@ benchmark corpora, which stay listed as excluded.
 
 ## Required development-workflow review
 
-The development `polaris workflow review` is separate from the legacy Python/two-check
-actions below. It statically reviews declared Python/JavaScript/TypeScript patterns and
-reports unavailable, unsupported, partial and stale scope explicitly. It does not run
-project code, execute suggested commands, apply patches, or run behavioral tests.
-Source implementation and fixture tests are not a published release or accuracy claim.
+`polaris workflow review` is separate from the legacy Python/two-check integrations below.
+It statically reviews declared Python/JavaScript/TypeScript patterns and reports
+unavailable, unsupported, partial and stale scope explicitly. It does not run project code,
+execute suggested commands, apply patches, or run behavioral tests. Its fixture tests are
+not an accuracy claim.
 
 Use the opt-in [agent-native provisioner/launcher guide](../ci/agent-native/README.md),
 [GitHub template](../ci/agent-native/github-required-review.yml),
