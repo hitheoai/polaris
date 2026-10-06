@@ -144,7 +144,7 @@ def test_public_wheel_filter_drops_only_private_modules():
     names = sorted({path.name for path in package.iterdir()} | {"lab", "training.py", "synthetic.py", "evaluation.py"})
     skipped = module._ignore(str(package), names)
     assert {"lab", "training.py", "synthetic.py", "evaluation.py"} <= skipped
-    assert not skipped & {"cli.py", "review", "api", "mcp", "runtime.py", "selftest.py", "install.py"}
+    assert not skipped & {"cli.py", "review", "api", "mcp", "runtime.py", "selftest.py", "install.py", "refactor"}
     assert module._ignore(str(package / "review"), ["metrics.py", "engine.py"]) == set()
     assert "unapproved-private-module.py" in module._ignore(str(package), ["unapproved-private-module.py"])
 

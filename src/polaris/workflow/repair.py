@@ -148,10 +148,19 @@ def _bound_snapshot(
 def propose_local(
     root: Path, candidate: CandidateRequest, *, config: WorkflowReviewConfig | None = None,
     runtime: AnalysisRuntime | None = None, guard_policy: TrustedGuardPolicy | None = None,
+    report: WorkflowEnvelope | None = None,
 ) -> PatchProposal:
+    """Bind a candidate to a fresh review of the worktree.
+
+    `report` is a review the caller already ran with the same config and runtime (for example the
+    review that found the findings being repaired); it is used instead of reviewing again. It is
+    never trusted on its own: it must still be fresh, and the files and context the proposal binds
+    must match what that review analyzed.
+    """
     chosen = config or WorkflowReviewConfig()
     active = runtime or AnalysisRuntime(allow_external_analyzers=True, allow_temporary_source_files=True)
-    report = review_workspace(root, config=chosen, runtime=active, guard_policy=guard_policy)
+    if report is None:
+        report = review_workspace(root, config=chosen, runtime=active, guard_policy=guard_policy)
     if report.status == "stale" or not report.snapshot.complete or report.snapshot.fresh is not True:
         raise EngineeringError("stale_context")
     if candidate.expected_snapshot_digest and candidate.expected_snapshot_digest != report.snapshot.digest:

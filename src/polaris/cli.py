@@ -102,6 +102,9 @@ def parser() -> argparse.ArgumentParser:
     from polaris.check.cli import add_check_parsers
 
     add_check_parsers(commands)  # first in --help: the one command most people need
+    from polaris.refactor.cli import add_fix_parsers
+
+    add_fix_parsers(commands)  # right after it: fix what check finds
     commands.add_parser(
         "capabilities", help="Show the experimental registry, not claimed model support."
     )
@@ -252,6 +255,10 @@ def main(argv: list[str] | None = None) -> int:
         from polaris.check.cli import run as run_check
 
         return run_check(args)
+    if args.command == "fix":
+        from polaris.refactor.cli import run as run_fix
+
+        return run_fix(args)
     if args.command in ("agent-hook", "doctor"):
         from polaris.integrations.doctor import run as run_doctor
         from polaris.integrations.hooks import run as run_hook

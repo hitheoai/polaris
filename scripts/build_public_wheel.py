@@ -34,7 +34,7 @@ PUBLIC = frozenset({
     "calibration.py", "cli.py", "client.py", "contract.py", "data.py", "engine.py", "engineering",
     "errors.py", "fixtures.py", "install.py", "integrations", "jsonio.py", "mcp", "model.py",
     "model_cli.py", "onboarding", "preprocessing.py", "py.typed", "registry.py", "remote.py",
-    "review", "runtime.py", "selftest.py", "tui", "workflow", "check",
+    "review", "runtime.py", "selftest.py", "tui", "workflow", "check", "refactor",
 })
 # The analyzer has its own exact graph and is not installed through public extras.
 COMBINED_EXTRAS = ("model", "api", "mcp", "tui")
@@ -46,6 +46,8 @@ REQUIRED = ("cli.py", "review/engine.py", "api/app.py", "mcp/server.py", "instal
             "tui/cli.py", "tui/app.py", "tui/view.py", "tui/simple/__init__.py",
             "check/cli.py", "check/model.py", "check/build.py", "check/runner.py", "check/output.py",
             "check/state.py", "check/brand.py", "check/brand_site.py",
+            "refactor/cli.py", "refactor/plan.py", "refactor/apply.py", "refactor/generators.py",
+            "refactor/codemods.py", "refactor/gates.py", "refactor/models.py", "refactor/render.py",
             "engineering/models.py", "engineering/apply.py", "engineering/generation.py",
             "integrations/freshness.py", "integrations/hooks.py", "integrations/doctor.py",
             "review/capabilities.py", "review/analyzers/semgrep.py", "review/analyzers/rule_pack.py",

@@ -13,7 +13,9 @@ verified edit is not proof that behavior is correct. Behavioral tests are not ru
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import difflib
+from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -21,7 +23,7 @@ from polaris.integrations.forge.markdown import safe_suggestion
 from polaris.review.analyzers import AnalysisRuntime
 from polaris.review.engine import WorkflowReviewer
 from polaris.review.js.tsconfig import is_config
-from polaris.review.models import WorkflowFinding, WorkflowReviewReport
+from polaris.review.models import SourceFile, WorkflowFinding, WorkflowReviewReport
 from polaris.workflow.service import WorkspaceReview
 
 VerificationStatus = Literal["verified", "still_detected", "adds_findings", "inconclusive", "not_applicable"]
@@ -61,6 +63,108 @@ def _checked(report: WorkflowReviewReport, path: str) -> bool:
 def _same(finding: WorkflowFinding, other: WorkflowFinding, *, distance: int = 0) -> bool:
     return (finding.rule_id == other.rule_id and finding.check_id == other.check_id
             and abs(finding.start_line - other.start_line) <= distance)
+
+
+def _moved_lines(original: str, edited: str) -> list[tuple[int, int, int]]:
+    """(first, end, shift) for each run of lines the edit left alone (0-based, end exclusive)."""
+    matcher = difflib.SequenceMatcher(a=original.splitlines(), b=edited.splitlines(), autojunk=False)
+    return [(a, a + size, b - a) for a, b, size in matcher.get_matching_blocks() if size and b != a]
+
+
+def _shifted(line: int, moved: list[tuple[int, int, int]]) -> int:
+    for first, end, shift in moved:
+        if first <= line - 1 < end:
+            return line + shift
+    return line
+
+
+def _judge(
+    reviewer: WorkflowReviewer, subject: SourceFile, context: Sequence[SourceFile],
+    control: WorkflowReviewReport | None, finding: WorkflowFinding, edited_text: str,
+) -> tuple[Verification, WorkflowReviewReport]:
+    """Judge one replacement of `subject`'s text: the shared core of every re-verification.
+
+    The control review (the original text, same context) is returned so callers can reuse it for
+    other candidates of the same file.
+    """
+    path = finding.path
+    if control is None:
+        control = reviewer.review_sources([subject, *context])
+    before = _open(control, path)
+    if not _checked(control, path) or not any(
+            _same(finding, other) and other.result == finding.result for other in before):
+        return Verification("inconclusive", "not_reproduced_in_isolation"), control
+    edited = reviewer.review_sources([replace(subject, after=edited_text), *context])
+    if not _checked(edited, path):
+        return Verification("inconclusive", "edited_file_not_fully_checked"), control
+    after = _open(edited, path)
+    if any(_same(finding, other, distance=1) for other in after):
+        return Verification("still_detected", "finding_still_detected"), control
+    known = {(other.rule_id, other.check_id, other.start_line) for other in before}
+    unknown = [other for other in after if (other.rule_id, other.check_id, other.start_line) not in known]
+    if unknown and subject.after is not None:
+        # A fix that adds or removes lines moves the problems below it; they are not new.
+        moved = _moved_lines(subject.after, edited_text)
+        known |= {(other.rule_id, other.check_id, _shifted(other.start_line, moved)) for other in before}
+        unknown = [other for other in unknown if (other.rule_id, other.check_id, other.start_line) not in known]
+    if unknown:
+        return Verification("adds_findings", "edit_adds_findings"), control
+    return Verification("verified", "no_longer_detected"), control
+
+
+class Reverifier:
+    """Re-review whole-file replacements for flagged findings, in memory, against one review.
+
+    The same checks as `verify_edits` (control reproduces the finding, the edited file is fully
+    checked, the finding is gone, nothing new appears) for any replacement text, not only a
+    rule's one-line edit. Built-in analyzers only; nothing is executed, written or sent anywhere.
+    """
+
+    def __init__(self, review: WorkspaceReview) -> None:
+        self._review = review
+        self._reviewed = {source.path: source for source in review.sources
+                          if source.role == "review" and source.after is not None and source.skip is None}
+        self._configs = [replace(source, role="context") for source in self._reviewed.values()
+                         if is_config(source.path)]
+        self._reviewer = WorkflowReviewer(config=review.config, runtime=MEMORY_ONLY, guard_policy=None)
+        self._controls: dict[tuple[str, frozenset[str]], WorkflowReviewReport] = {}
+
+    def text_of(self, path: str) -> str | None:
+        source = self._reviewed.get(path)
+        return source.after if source is not None else None
+
+    def baseline(self, paths: Iterable[str]) -> dict[tuple[str, str], int]:
+        """Open findings per (path, check) as the post-apply check sees these files today.
+
+        It reviews the files alone, as `workflow.repair.static_adapter` does, so anything counted
+        here was already there before a fix and is not caused by it.
+        """
+        sources = [replace(source, role="review", changed_lines=None) for path in sorted(set(paths))
+                   if (source := self._reviewed.get(path)) is not None]
+        if not sources:
+            return {}
+        report = self._reviewer.review_sources([SourceFile(source.path, source.after or "", None) for source in sources])
+        return dict(Counter((item.path, item.check_id) for item in report.findings if item.result != "ok"))
+
+    def verify(self, finding: WorkflowFinding, edited_text: str) -> Verification:
+        path = finding.path
+        target = self._reviewed.get(path)
+        if target is None or target.after is None:
+            return Verification("not_applicable", "source_unavailable")
+        if "\r" in target.after:
+            return Verification("not_applicable", "carriage_returns")
+        if edited_text == target.after:
+            return Verification("not_applicable", "no_change")
+        if finding.result not in OPEN_RESULTS:
+            return Verification("not_applicable", "not_an_open_finding")
+        crossed = {step.path for step in finding.trace if step.path and step.path != path}
+        context = [replace(self._reviewed[name], role="context") for name in sorted(crossed) if name in self._reviewed]
+        context.extend(item for item in (*self._review.context_sources, *self._configs) if item.path != path)
+        subject = replace(target, changed_lines=None)
+        key = (path, frozenset(crossed))
+        verdict, control = _judge(self._reviewer, subject, context, self._controls.get(key), finding, edited_text)
+        self._controls[key] = control
+        return verdict
 
 
 def verify_edits(
@@ -107,24 +211,5 @@ def verify_edits(
                 results[finding.finding_id] = Verification("inconclusive", "verification_limit")
                 continue
             budget -= 1
-            if control is None:
-                control = reviewer.review_sources([subject, *context])
-            before = _open(control, path)
-            if not _checked(control, path) or not any(
-                    _same(finding, other) and other.result == finding.result for other in before):
-                results[finding.finding_id] = Verification("inconclusive", "not_reproduced_in_isolation")
-                continue
-            edited = reviewer.review_sources([replace(subject, after=edited_text), *context])
-            if not _checked(edited, path):
-                results[finding.finding_id] = Verification("inconclusive", "edited_file_not_fully_checked")
-                continue
-            after = _open(edited, path)
-            if any(_same(finding, other, distance=1) for other in after):
-                results[finding.finding_id] = Verification("still_detected", "finding_still_detected")
-                continue
-            known = {(other.rule_id, other.check_id, other.start_line) for other in before}
-            if any((other.rule_id, other.check_id, other.start_line) not in known for other in after):
-                results[finding.finding_id] = Verification("adds_findings", "edit_adds_findings")
-                continue
-            results[finding.finding_id] = Verification("verified", "no_longer_detected")
+            results[finding.finding_id], control = _judge(reviewer, subject, context, control, finding, edited_text)
     return results
