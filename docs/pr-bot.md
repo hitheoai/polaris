@@ -42,11 +42,55 @@ comment written by the bot account.
 
 ## Set it up
 
+### With the GitHub Action
+
+Add this workflow to your default branch as `.github/workflows/polaris.yml`:
+
+```yaml
+name: Polaris
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+permissions: {}
+jobs:
+  analyze:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions: {contents: read}
+    steps:
+      - uses: hitheoai/polaris@v1
+        with: {mode: analyze}
+  publish:
+    needs: analyze
+    runs-on: ubuntu-latest
+    permissions: {contents: read, pull-requests: write}
+    steps:
+      - uses: hitheoai/polaris@v1
+        with: {mode: publish}
+```
+
+That's all: no variable to set and no token to create. The two jobs are separate on purpose, so
+the job that reads the code never holds a write token (see the [security model](#security-model)).
+Open a pull request: **analyze** reviews it and **publish** posts the results.
+
+The action has three inputs. `mode` is `analyze` or `publish`. `version` is the exact Polaris
+version installed from PyPI; by default it is the version the action was released with, and you
+can pin another, such as `0.4.0`. `fail-on` controls when the `publish` job fails: `never` (the
+default: comments only), `findings` (a flagged high or critical finding on a changed line) or
+`incomplete` (also when part of the review couldn't finish). Pin the action itself to a release
+tag, or to a full commit for the strictest setup.
+
+### With the workflow template
+
+If you'd rather not use a packaged action, copy the template it is built from:
+
 1. Copy [`ci/github/polaris-pr-review.yml`](../ci/github/polaris-pr-review.yml) to
    `.github/workflows/polaris-pr-review.yml` on your default branch.
 2. Set the repository variable `POLARIS_PACKAGE` (Settings → Secrets and variables → Actions →
-   Variables) to a pinned Polaris requirement that includes `polaris pr`, such as an exact
-   released version or a wheel URL with its `#sha256=` hash. The workflow refuses to run without it.
+   Variables) to a pinned Polaris requirement that includes `polaris pr`, such as
+   `theovex-polaris==0.4.0` or a wheel URL with its `#sha256=` hash. The workflow refuses to run
+   without it. The template fails the publish job on a flagged finding; add `--fail-on never` to
+   `polaris pr publish` for comments only.
 3. Open a pull request. The **analyze** job reviews it; the **publish** job posts the results.
 
 ## Security model

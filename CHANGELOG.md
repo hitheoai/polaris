@@ -3,6 +3,13 @@
 What changed in each Polaris release. Before 1.0, a minor version can change commands and
 output formats; the changes are listed here.
 
+## Unreleased
+
+- **A GitHub Action, `hitheoai/polaris@v1`**, for pull-request comments: two short jobs
+  (`mode: analyze` and `mode: publish`) replace copying a workflow and setting a variable. The job
+  that reads the code never holds a write token. `fail-on` chooses whether `publish` can fail the
+  job (default: never), and `version` pins the Polaris release it installs from PyPI.
+
 ## 0.4.0 (2026-10-05)
 
 The first public release. Earlier versions were private previews.
