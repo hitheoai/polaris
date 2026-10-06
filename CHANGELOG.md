@@ -5,6 +5,22 @@ output formats; the changes are listed here.
 
 ## Unreleased
 
+- **`polaris fix`** fixes some of the problems `polaris check` finds. A fix is shown only after
+  Polaris checks the fixed code again, in memory: the problem must be gone and nothing new may
+  appear. Nothing is written until you approve that exact fix (`--apply` asks about each one,
+  `--approve DIGEST` is for scripts). It needs a Git project and does not run your tests. Today it
+  fixes turned-off certificate checks, debug mode left on, and commands built from text in Python,
+  plus the one-line edits `polaris check` already offers. `--json` and `--output` give the plan;
+  see [docs/fix.md](docs/fix.md).
+- **`polaris fix --ai`** (opt-in) asks an AI model you choose for fixes Polaris has none of its own
+  for. Settings live in your own `~/.polaris/ai.toml`; the key is read from an environment
+  variable and is never printed or saved. You see which files may be sent, how big they are and
+  where before anything is sent, and afterwards what was sent. It is refused in CI, and the answer
+  goes through the same checks and your approval. No real provider has been validated yet: it is
+  tested with scripted responses.
+- **`benchmarks/refactor_eval`**: an offline replay of scripted AI answers, which shows the checks
+  stop bad answers (and the kind they can't catch), and a `--live` mode that measures your own
+  provider.
 - **A GitHub Action, `hitheoai/polaris@v1`**, for pull-request comments: two short jobs
   (`mode: analyze` and `mode: publish`) replace copying a workflow and setting a variable. The job
   that reads the code never holds a write token. `fail-on` chooses whether `publish` can fail the

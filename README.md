@@ -4,7 +4,7 @@ Polaris is a free security check for your code and for your AI coding agent. It 
 problems and explains each one in plain words: what's wrong, why it matters and how to fix it.
 
 - **Local.** `polaris check` runs on your computer: nothing leaves it, and no account is needed.
-- **Deterministic.** It uses no AI model, so the same code always gives the same result.
+- **Deterministic.** `polaris check` uses no AI model, so the same code always gives the same result.
 - **Honest.** Polaris reports the problems it finds and lists the files it couldn't check.
   Finding nothing doesn't prove your code is safe.
 
@@ -64,6 +64,22 @@ polaris check --json           # the full result, for an AI agent or a script
 - **`--limit N`** shows up to N problems in full (1 to 50, default 25); the rest are counted.
 
 The full guide is in [docs/check.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/check.md).
+
+## Fix what it finds
+
+```sh
+polaris fix            # the fixes Polaris can make, each re-checked first
+polaris fix --apply    # show each fix and ask; apply the ones you approve
+```
+
+Polaris shows a fix only after checking the fixed code again, in memory: the problem must be gone
+and nothing new may appear. Nothing is written until you approve that exact fix. Your tests are not
+run, so run them after applying. By default no AI model is used and nothing leaves your computer.
+
+If you want it, `polaris fix --ai` asks an AI model you choose (set in `~/.polaris/ai.toml`, with
+the key in an environment variable) about problems Polaris has no fix for. You see which files would
+be sent, and where, before anything is sent, and the answer must pass the same checks. It never runs
+in CI. See [docs/fix.md](https://github.com/hitheoai/polaris/blob/v0.4.0/docs/fix.md).
 
 ## Use it with your AI agent
 

@@ -75,7 +75,8 @@ The result as a whole is one of:
 
 When Polaris has a one-line fix for a problem, it tests that fix first. It checks the code again
 in memory with the fix applied, and offers the fix only if the problem is gone and nothing new
-appears. Nothing is written to your files, and your app's own tests are never run.
+appears. Nothing is written to your files, and your app's own tests are never run. To apply fixes
+with the same kind of test, see [`polaris fix`](fix.md).
 
 ## Exit codes
 
