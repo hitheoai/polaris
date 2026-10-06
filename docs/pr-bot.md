@@ -88,7 +88,7 @@ If you'd rather not use a packaged action, copy the template it is built from:
    `.github/workflows/polaris-pr-review.yml` on your default branch.
 2. Set the repository variable `POLARIS_PACKAGE` (Settings → Secrets and variables → Actions →
    Variables) to a pinned Polaris requirement that includes `polaris pr`, such as
-   `theovex-polaris==0.4.0` or a wheel URL with its `#sha256=` hash. The workflow refuses to run
+   `theovex-polaris==0.5.0` or a wheel URL with its `#sha256=` hash. The workflow refuses to run
    without it. The template fails the publish job on a flagged finding; add `--fail-on never` to
    `polaris pr publish` for comments only.
 3. Open a pull request. The **analyze** job reviews it; the **publish** job posts the results.

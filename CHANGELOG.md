@@ -3,7 +3,7 @@
 What changed in each Polaris release. Before 1.0, a minor version can change commands and
 output formats; the changes are listed here.
 
-## Unreleased
+## 0.5.0 (2026-10-06)
 
 - **`polaris fix`** fixes some of the problems `polaris check` finds. A fix is shown only after
   Polaris checks the fixed code again, in memory: the problem must be gone and nothing new may
