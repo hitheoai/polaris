@@ -77,6 +77,8 @@ FUNCTION_TYPES = frozenset({
     "function_declaration", "generator_function_declaration", "function_expression", "function",
     "arrow_function", "method_definition", "generator_function",
 })
+_REQUEST_PARAMS = frozenset({"req", "request"})
+_RESPONSE_PARAMS = frozenset({"res", "response", "reply"})
 WRAPPER_TYPES = frozenset({
     "parenthesized_expression", "as_expression", "satisfies_expression", "non_null_expression",
     "type_assertion",
@@ -206,6 +208,57 @@ def leads(value: Value) -> bool:
     return value.pre == "" or (value.pre == "\x00" and value.kind not in ("template", "concat", "join"))
 
 
+def metachar_escape_call(node: Any) -> bool:
+    r"""`value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")` escapes a regular expression.
+
+    The replacement must reinsert the match (`$&`). A replace that deletes metacharacters, or a
+    class that is only a few of them, is not this pattern.
+    """
+    node = unwrap(node)
+    if node is None or node.type != "call_expression":
+        return False
+    function = unwrap(node.child_by_field_name("function"))
+    if function is None or function.type != "member_expression":
+        return False
+    prop = function.child_by_field_name("property")
+    if prop is None or txt(prop) not in ("replace", "replaceAll"):
+        return False
+    arguments = node.child_by_field_name("arguments")
+    args = named(arguments) if arguments is not None and arguments.type == "arguments" else []
+    if len(args) < 2:
+        return False
+    pattern = unwrap(args[0])
+    if pattern is None or pattern.type != "regex":
+        return False
+    text = txt(pattern)
+    if not text.startswith("/[") or not text.rstrip("gimsuy").endswith("/"):
+        return False
+    body = text[2:text.rfind("]")]
+    if sum(item in body for item in (".", "*", "+", "?", "(", ")", "|", "\\")) < 6:
+        return False
+    replacement = string_value(args[1]) or txt(args[1])
+    return "$&" in replacement
+
+
+def returns_metachar_escape(function: Any) -> bool:
+    r"""A helper whose whole body is `return arg.replace(<metacharacters>, "\\$&")`."""
+    body = function.child_by_field_name("body") if function is not None else None
+    if body is None:
+        return False
+    if body.type == "statement_block":
+        statements = named(body)
+        if len(statements) != 1 or statements[0].type != "return_statement":
+            return False
+        expression = next(iter(named(statements[0])), None)
+    else:
+        expression = body
+    call = unwrap(expression)
+    if not metachar_escape_call(call):
+        return False
+    receiver = unwrap(call.child_by_field_name("function").child_by_field_name("object"))
+    return receiver is not None and receiver.type == "identifier" and txt(receiver) in _param_names(function)
+
+
 def without_params(taint: Taint) -> Taint:
     """Drop a function's own parameter origins (they are mapped to arguments separately)."""
     if not any(origin.kind == "param" for origin in taint.origins):
@@ -234,6 +287,51 @@ class AuthFacts:
     reads: list[tuple[int, str]] = field(default_factory=list)
     sinks: int = 0
     rate_limited: bool = False
+
+
+def _param_names(function: Any) -> list[str]:
+    params = function.child_by_field_name("parameters")
+    if params is None:
+        single = function.child_by_field_name("parameter")
+        return [txt(single)] if single is not None else []
+    names: list[str] = []
+    for param in named(params):
+        pattern = param
+        if param.type in ("required_parameter", "optional_parameter"):
+            pattern = param.child_by_field_name("pattern") or param
+        if pattern.type == "assignment_pattern":
+            pattern = pattern.child_by_field_name("left") or pattern
+        if pattern.type == "rest_pattern":
+            pattern = next(iter(named(pattern)), pattern)
+        names.append(txt(pattern))
+    return names
+
+
+def _request_handler(function: Any) -> bool:
+    """`(req, res)` or `(req, res, next)`: the shape of Connect/Express middleware, not a guess about names alone."""
+    names = _param_names(function)
+    return len(names) >= 2 and names[0] in _REQUEST_PARAMS and names[1] in _RESPONSE_PARAMS
+
+
+def _returned_handlers(function: Any) -> list[Any]:
+    body = function.child_by_field_name("body")
+    if body is None:
+        return []
+    locals_: dict[str, Any] = {}
+    found: list[Any] = []
+    for node in iter_nodes(body):
+        if node.type == "variable_declarator":
+            name = node.child_by_field_name("name")
+            value = unwrap(node.child_by_field_name("value"))
+            if name is not None and name.type == "identifier" and value is not None and value.type in FUNCTION_TYPES:
+                locals_[txt(name)] = value
+        elif node.type == "return_statement":
+            value = unwrap(next(iter(named(node)), None))
+            target = value if value is not None and value.type in FUNCTION_TYPES else (
+                locals_.get(txt(value)) if value is not None and value.type == "identifier" else None)
+            if target is not None and _request_handler(target):
+                found.append(target)
+    return found
 
 
 class JsFile:
@@ -353,7 +451,89 @@ class JsFile:
                         function, _ = self._function_value(right)
                         if function is not None:
                             self.default_export = function
+        self._nested_requires()
+        self._commonjs_exports()
         self._entries()
+        self._returned_middleware()
+
+    def _nested_requires(self) -> None:
+        """`var exec = require("child_process").exec` inside an IIFE is still that module's exec."""
+        for node in iter_nodes(self.root):
+            if node.type != "variable_declarator":
+                continue
+            name = node.child_by_field_name("name")
+            value = node.child_by_field_name("value")
+            if name is not None and value is not None:
+                self._require(name, unwrap(value))
+
+    def _commonjs_exports(self) -> None:
+        """`exports.name = function` and `module.exports = { name: function }`, including inside an IIFE.
+
+        Top-level `export function` is indexed above. CommonJS assignments are not, so a public
+        function that shells out its argument was invisible.
+        """
+        for node in iter_nodes(self.root):
+            if node.type != "assignment_expression":
+                continue
+            left = node.child_by_field_name("left")
+            right = unwrap(node.child_by_field_name("right"))
+            if left is None or right is None:
+                continue
+            target = txt(left)
+            if right.type == "identifier":
+                right = self.constants.get(txt(right), right)
+            if target in ("module.exports", "exports") and right.type == "object":
+                self._export_object(right)
+                continue
+            if target not in ("module.exports", "exports") and not target.startswith(("exports.", "module.exports.")):
+                continue
+            function, _wrappers = self._function_value(right)
+            if function is None and right.type == "object":
+                self._export_object(right)
+                continue
+            if function is None:
+                continue
+            if target in ("module.exports", "exports"):
+                self.default_export = function
+                self.functions.setdefault("default", function)
+            else:
+                name = target.split(".")[-1]
+                self.functions[name] = function
+                self.exports[name] = function
+
+    def _export_object(self, node: Any) -> None:
+        for item in named(node):
+            if item.type != "pair":
+                continue
+            key = item.child_by_field_name("key")
+            value = unwrap(item.child_by_field_name("value"))
+            if key is None or value is None or value.type not in FUNCTION_TYPES:
+                continue
+            name = string_value(key) or txt(key)
+            self.functions[name] = value
+            self.exports[name] = value
+
+    def _returned_middleware(self) -> None:
+        """A factory `module.exports = function (options) { return function (req, res, next) }` is a handler.
+
+        Express often never calls `app.get` in the file that defines the middleware. The returned
+        `(req, res, next)` function is the entry point; without it, `req.url` is not a source.
+        """
+        seen = {id(entry.node) for entry in self.entries}
+        candidates = list(self.exports.values())
+        if self.default_export is not None:
+            candidates.append(self.default_export)
+        for function in candidates:
+            if function is None or function.type not in FUNCTION_TYPES or id(function) in seen:
+                continue
+            seen.add(id(function))
+            if _request_handler(function):
+                self.entries.append(Entry(function, "express_handler", "exported handler"))
+            for handler in _returned_handlers(function):
+                if id(handler) in seen:
+                    continue
+                seen.add(id(handler))
+                self.entries.append(Entry(handler, "express_handler", "middleware"))
 
     def _function_value(self, value: Any) -> tuple[Any, list[str]]:
         """A function, possibly wrapped by higher-order calls such as withAuth(handler)."""
@@ -410,8 +590,17 @@ class JsFile:
                         self.import_specs[txt(alias or name)] = (module, txt(name))
 
     def _require(self, pattern: Any, value: Any) -> None:
+        if value is None:
+            return
         if value.type == "await_expression" and value.named_children:
             value = unwrap(value.named_children[0])
+        member = ""
+        if value is not None and value.type == "member_expression":
+            prop = value.child_by_field_name("property")
+            if prop is None or prop.type != "property_identifier":
+                return
+            member = txt(prop)
+            value = unwrap(value.child_by_field_name("object"))
         if value is None or value.type != "call_expression":
             return
         function = value.child_by_field_name("function")
@@ -423,9 +612,11 @@ class JsFile:
         if not module:
             return
         if pattern.type == "identifier":
-            self.imports[txt(pattern)] = module
-            self.import_specs[txt(pattern)] = (module, "*")
-        elif pattern.type == "object_pattern":
+            # require("child_process").exec is that function, not the whole module.
+            imported = f"{module}.{member}" if member else module
+            self.imports[txt(pattern)] = imported
+            self.import_specs[txt(pattern)] = (module, member or "*")
+        elif pattern.type == "object_pattern" and not member:
             for item in named(pattern):
                 if item.type == "shorthand_property_identifier_pattern":
                     self.imports[txt(item)] = f"{module}.{txt(item)}"
@@ -1515,6 +1706,22 @@ class FunctionAnalysis:
                 self.ev(left.child_by_field_name("object"))
         return value
 
+    def _invoked(self, function: Any, values: list[Value], node: Any, line: int) -> Value:
+        """Run an immediately invoked function with this call's arguments."""
+        nested = FunctionAnalysis(self.project, self.file, function, report=self.report, depth=self.depth + 1,
+                                  env=self.env, symbol=self.symbol, bindings=values)
+        nested.run()
+        self.guards.extend(nested.guards)
+        self.writes.extend(nested.writes)
+        self.reads.extend(nested.reads)
+        self.sink_count += nested.sink_count
+        self.rate_limited = self.rate_limited or nested.rate_limited
+        self._absorb(nested)
+        returned = [values[index].taint for index in nested.summary.returns_params if index < len(values)]
+        taint = join(nested.summary.returns, *returned)
+        return Value(taint=taint.with_step(line, "function(…)()") if taint.tainted else taint, kind="call",
+                     text=short_text(node, 80), pre="")
+
     def _closure(self, node: Any) -> None:
         """Analyze a nested function with the enclosing variables (callbacks, handlers, effects)."""
         if self.depth > MAX_SUMMARY_DEPTH:
@@ -1618,6 +1825,10 @@ class FunctionAnalysis:
                 self.sink("code_injection", "polaris.js.code_injection.eval", values[-1], node, "new Function(…)",
                           dynamic=True)
             return Value(kind="function")
+        if last == "RegExp" and values and (values[0].kind in ("template", "concat") or values[0].taint.tainted):
+            self.sink("code_injection", "polaris.js.code_injection.regexp", values[0], node, "new RegExp(…)",
+                      dynamic=True)
+            return Value(kind="regex", text=short_text(node, 80))
         if name in ("vm.Script",) or name.endswith(".Script") and "vm" in name:
             if values:
                 self.sink("code_injection", "polaris.js.code_injection.eval", values[0], node, "new vm.Script(…)",
@@ -1658,6 +1869,10 @@ class FunctionAnalysis:
         if function.type == "member_expression":
             receiver = self.ev(function.child_by_field_name("object"))
         values, nodes = self._arguments(node)
+        # `const Util = ($ => { $(selector) })(jQuery)` is not a call of a named function.
+        # Nothing else walks that body, so a sink inside it was invisible.
+        if function.type in FUNCTION_TYPES and self.depth <= MAX_SUMMARY_DEPTH:
+            return self._invoked(function, values, node, line)
         method = name.split(".")[-1] if name else (txt(function.child_by_field_name("property"))
                                                   if function.type == "member_expression" and function.child_by_field_name("property") is not None else "")
         if name and self.project.is_guard(name):
@@ -1708,10 +1923,24 @@ class FunctionAnalysis:
         if name in ("next/navigation.useRouter", "next/router.useRouter", "useRouter", "react-router-dom.useNavigate",
                     "useNavigate"):
             return Value(text=f"{last}()", obj="router")
+        # url.parse(req.url).pathname is still the request URL. The legacy parser is not a sanitizer.
+        if name in ("url.parse", "node:url.parse") and values:
+            first = values[0]
+            return Value(taint=first.taint, kind="url", text=short_text(node, 80),
+                         obj="url" if first.taint.tainted else None)
+        # element.getAttribute(...) is attacker-controlled DOM text (href, data-*).
+        if method == "getAttribute" and not self._local_shadow("getAttribute"):
+            return Value(taint=Taint(frozenset({Origin("client_input", short_text(node, 80), line)})),
+                         text=short_text(node, 80))
         # Sanitizers
         if name in SANITIZE_ALL or last in ("parseInt", "parseFloat", "isNaN", "isFinite") or name.startswith("Math."):
             return Value(kind="number", text=short_text(node, 60))
         sanitizer = SANITIZERS.get(name) or SANITIZERS.get(last) if (name in SANITIZERS or last in SANITIZERS) else None
+        # `escape` is an HTML sanitizer by name. A local function of that name whose body
+        # replaces the metacharacter class and reinserts the match is a regular-expression escape.
+        escape_fn = self.project.function_for(self.file, function)
+        if escape_fn is not None and returns_metachar_escape(escape_fn[1]):
+            sanitizer = (sanitizer or frozenset()) | frozenset({"code_injection"})
         if sanitizer and values:
             return Value(taint=values[0].taint.sanitize(sanitizer), kind="sanitized", text=short_text(node, 80), pre="\x00")
         if last in ("parse", "safeParse", "parseAsync", "safeParseAsync") and receiver is not None \
@@ -1722,6 +1951,9 @@ class FunctionAnalysis:
             # Schema parsing keeps the input's origin unless the schema constrains it to safe values.
             return Value(taint=values[0].taint.with_step(line, short_text(node, 80)) if values[0].taint.tainted
                          else values[0].taint, text=short_text(node, 80), pre="", props=values[0].props)
+        if last in ("replace", "replaceAll") and nodes and receiver is not None and metachar_escape_call(node):
+            return Value(taint=receiver.taint.sanitize(frozenset({"code_injection"})), kind="sanitized",
+                         text=short_text(node, 80), pre="\x00")
         if last in ("replace", "replaceAll") and nodes and receiver is not None and self._allowlist_regex(nodes[0]):
             return Value(taint=receiver.taint.sanitize(ALL_CHECKS), kind="sanitized", text=short_text(node, 80), pre="\x00")
         if name in ("String", "JSON.parse", "decodeURIComponent", "decodeURI", "Buffer.from", "atob", "btoa",
@@ -1745,6 +1977,11 @@ class FunctionAnalysis:
         resolved = self.project.function_for(self.file, function)
         if resolved is None and local is not None and local.function is not None:
             resolved = (self.file, local.function)
+        if resolved is not None and values and returns_metachar_escape(resolved[1]):
+            # A helper that only returns a metacharacter escape makes the argument safe to
+            # interpolate into a pattern. The summary would otherwise hand the caller's taint back.
+            return Value(taint=values[0].taint.sanitize(frozenset({"code_injection"})), kind="sanitized",
+                         text=short_text(node, 80), pre="\x00")
         if resolved is not None:
             return self._apply(resolved[0], resolved[1], local_label or name or "function", values, node, line)
         # A fixed-length prefix/suffix of a secret (key.slice(0, 4)) is a masked display, not the secret.
@@ -1855,10 +2092,20 @@ class FunctionAnalysis:
 
     # ---- sinks ------------------------------------------------------------------------------
 
+    def _public_api(self) -> bool:
+        node = self.node
+        return node in self.file.exports.values() or node is self.file.default_export
+
     def sink(self, check: str, rule_id: str, value: Value, node: Any, label: str, *, dynamic: bool = False,
              edit_column: int = -1, edit_text: str = "", replace_old: str = "", replace_new: str = "") -> None:
         self.sink_count += 1
         taint = self._refine(value.taint, value.text, line_of(node)) if value.taint.tainted else value.taint
+        # `exec(\`...${arg}\`)` in a public function is unsafe for every caller. A parameter that is only
+        # passed through stays a question (needs_context); string interpolation does not.
+        if (self._public_api() and check in ("command_injection", "code_injection")
+                and value.kind in ("template", "concat") and taint.params() and not taint.real()):
+            taint = Taint(taint.origins | frozenset({Origin(
+                "library_input", f"argument of {self.symbol}()", line_of(node))}), taint.steps, taint.sanitized)
         if check == "secret_exposure":
             relevant = taint.secrets()
         else:
@@ -1958,6 +2205,9 @@ class FunctionAnalysis:
         # SQL
         if values:
             self._sql(node, name, last_segment, first, nodes)
+        # $() / jQuery() interpret a string starting with "<" as HTML. $(document).find does not.
+        if values and name in ("$", "jQuery") and not self._local_shadow(name) and not self._dom_node(nodes[0] if nodes else None):
+            self.sink("xss", "polaris.js.xss.jquery_html", first, node, "$(…)", dynamic=True)
         # XSS
         if values and last_segment == "insertAdjacentHTML" and len(values) > 1:
             self.sink("xss", "polaris.js.xss.dom_html", values[1], node, "insertAdjacentHTML(…)", dynamic=True)
@@ -1972,6 +2222,16 @@ class FunctionAnalysis:
                        or (last_segment in ("json", "send", "end", "text") and name.split(".")[0] in ("res", "response", "c", "ctx", "reply"))):
             for value in values:
                 self.sink("secret_exposure", "polaris.js.secret_exposure.output", value, node, f"{shown}(…)")
+
+    def _dom_node(self, node: Any) -> bool:
+        """`$(document)` and `$(this)` select a node. `$(selector)` may be HTML."""
+        node = unwrap(node)
+        if node is None:
+            return False
+        if node.type in ("this", "super"):
+            return True
+        text = self.file.callee(node) or txt(node)
+        return text in ("document", "window", "globalThis") or text.startswith(("document.", "window.", "globalThis."))
 
     def _local_shadow(self, name: str) -> bool:
         root = name.split(".")[0]

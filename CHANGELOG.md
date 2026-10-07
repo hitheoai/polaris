@@ -3,7 +3,7 @@
 What changed in each Polaris release. Before 1.0, a minor version can change commands and
 output formats; the changes are listed here.
 
-## Unreleased
+## 0.6.0 (2026-10-07)
 
 - **The same review now has the same report id.** `report_id` (and the SARIF `reportId`) covered how
   long the review took, so two identical runs got different ids. It no longer does. If your scripts
@@ -11,6 +11,22 @@ output formats; the changes are listed here.
 - **A project reached through a symbolic link gets a clear error** (`path_is_symlink`) from
   `polaris workflow review`, instead of a generic one. Polaris still refuses such paths; on macOS,
   `/tmp` is one, so use `/private/tmp`.
+- **JavaScript reviews see a few sinks the first CVE slice showed were missing.** A function
+  returned as `(req, res, next)` middleware is an entry point, so `req.url` reaching `fs.stat` is a
+  path traversal. A public function that interpolates its argument into `exec` or `new RegExp` is a
+  finding, not only a question. `$()` of a DOM attribute is XSS; `$(document).find` is not.
+  `Math.random()` in `generateId` / `randomatic` is a weak token. A sink inside an immediately
+  invoked function is reviewed too, so `$()` in a Bootstrap-style wrapper is not skipped.
+  `strictSSL: false` is the same turned-off certificate check as `rejectUnauthorized: false`, and an
+  `http://` installer URL is a cleartext download. A value passed through a real metacharacter
+  escape (`escape-string-regexp`, or a helper whose body is that replace) is not a regular-expression
+  finding. ReDoS, resource exhaustion, incomplete protocol
+  allowlists and a crash on a thrown error are still not checks.
+- **A checked fix may not drop a value the flagged call read**, in JavaScript and TypeScript as well
+  as Python, and not only a bare name: keeping `user` when the call read `user.name` is refused
+  (`fix_drops_a_value`). `user["name"]` counts as the same value. The check still cannot see a value
+  copied into a variable that nothing reads, and a fix that passes it has not been shown to do the
+  same thing.
 - **`polaris fix --ai` is now validated against a real local model**, and the run found and fixed
   two problems. A model is now asked only for the corrected file; Polaris builds the rest of the
   proposal, so a model chooses no path, hash, finding or command. And Python fixes that stop using a

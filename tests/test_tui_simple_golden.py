@@ -35,7 +35,7 @@ UPDATE = os.environ.get("POLARIS_TUI_UPDATE_GOLDEN") == "1"
 SCREENS: dict[str, tuple[str, tuple[str, ...], bool]] = {
     "checking": ("sample", (), True),
     "results": ("sample", (), False),
-    "problem": ("sample", ("down", "down", "down", "enter"), False),  # Anyone can use DELETE /api/users...
+    "problem": ("sample", ("down", "down", "down", "down", "enter"), False),  # Anyone can use DELETE /api/users...
     "clear": ("clean", (), False),
 }
 

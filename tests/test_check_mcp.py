@@ -79,7 +79,7 @@ def test_check_fix_explain_and_check_again(changes: Path) -> None:
     result = CheckResult.model_validate(first.structured_content)
     data = first.structured_content
     assert data["format"] == CHECK_FORMAT and data["scope"] == "changes" and data["status"] == "fix_needed"
-    assert data["since_last_check"] is None and result.counts.fix_now == 4
+    assert data["since_last_check"] is None and result.counts.fix_now == 5
     summary = first.content[0].text
     for item in data["items"]:
         if item["priority"] == "fix_now":
@@ -113,12 +113,12 @@ def test_check_fix_explain_and_check_again(changes: Path) -> None:
     for missing in (unknown_item, odd):
         assert missing.is_error and missing.structured_content["code"] == "unknown_item"
         assert "Run polaris_check first" in missing.structured_content["message"]
-    # The agent fixes one problem; the next check says so.
+    # Fixing the shell helper clears the library finding and the POST caller.
     (changes / "lib" / "run.ts").write_text(SAFE_RUN)
     again, limited = session(target, [("polaris_check", {}), ("polaris_check", {"limit": 2})])
     since = again.structured_content["since_last_check"]
     assert posted["id"] in since["fixed"] and ssrf["id"] in since["still_open"] and since["new"] == []
-    assert "Since the last check: 1 fixed" in again.content[0].text
+    assert "Since the last check: 2 fixed" in again.content[0].text
     assert len(limited.structured_content["items"]) == 2
     assert sum(limited.structured_content["more"].values()) == sum(
         limited.structured_content["counts"][name] for name in ("fix_now", "check_this", "worth_a_look")) - 2

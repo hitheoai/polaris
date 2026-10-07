@@ -187,6 +187,37 @@ def test_the_dropped_value_check_reads_only_the_calls_own_arguments():
 def test_codemod_fixes_keep_the_values_they_were_given():
     for codemod, text, line in ((codemods.command_as_list, PING, 5), (codemods.tls_verification_on, FETCH, 5)):
         assert codemod(text, line)  # these still pass the gate; see the plan tests for the end-to-end path
+    attribute = 'import os\n\n\ndef run(self):\n    os.system("ls -l " + self.path)\n'
+    fixed = codemods.command_as_list(attribute, 5)
+    assert fixed and scope_problem(
+        attribute, fixed.text, SimpleNamespace(path="run.py", start_line=5, end_line=5)) is None
+
+
+def test_a_fix_may_not_drop_an_attribute_or_a_javascript_value():
+    py = SimpleNamespace(path="db.py", start_line=1, end_line=1)
+    original = 'db.execute("SELECT " + user.name)\n'
+    assert scope_problem(original, 'db.execute("SELECT ?", (user,))\n', py) == "fix_drops_a_value"
+    assert scope_problem(original, 'db.execute("SELECT ?", (user.name,))\n', py) is None
+    assert scope_problem(original, 'db.execute("SELECT ?", (user["name"],))\n', py) is None
+    # A new binding of the same name is not a use. An index this check can't represent is not a refusal.
+    assert scope_problem('db.execute("SELECT " + name)\n', 'name = "x"\ndb.execute("SELECT 1")\n', py) == "fix_drops_a_value"
+    assert scope_problem("db.execute(row[i + 1])\n", "db.execute(row, i)\n", py) is None
+    js = SimpleNamespace(path="run.js", start_line=1, end_line=1)
+    command = 'exec("ping " + req.query.host)\n'
+    assert scope_problem(command, 'exec("ping")\n', js) == "fix_drops_a_value"
+    assert scope_problem(command, 'execFile("ping", [req.query.host])\n', js) is None
+    assert scope_problem(command, 'execFile("ping", [req.query["host"]])\n', js) is None
+    assert scope_problem('exec(cmd, function(err) { return err })\n', 'execFile("sh", [cmd])\n', js) is None
+    assert scope_problem('new Function(refs.name, body)\n', 'new Function(refs.name)\n', js) == "fix_drops_a_value"
+    assert scope_problem('db.query("SELECT " + name)\n', 'const name = "x"\ndb.query("SELECT 1")\n', js) == "fix_drops_a_value"
+    # Copied into an unused variable still counts: this check does not follow the variable.
+    assert scope_problem('db.query("SELECT " + name)\n', 'const unused = name\ndb.query("SELECT 1")\n', js) is None
+    typed = "db.query(`SELECT ${user!.name}`)\n"
+    tsx = SimpleNamespace(path="run.tsx", start_line=1, end_line=1)
+    assert scope_problem(typed, 'db.query("SELECT ?")\n', tsx) == "fix_drops_a_value"
+    assert scope_problem(typed, 'db.query("SELECT ?", [user.name])\n', tsx) is None
+    assert scope_problem(command, 'exec("ping")\n', SimpleNamespace(path="main.rs", start_line=1, end_line=1)) is None
+    assert scope_problem(command, "function ( {\n", js) is None
 
 
 # ---- the shared re-verifier --------------------------------------------------------------------

@@ -211,7 +211,7 @@ def test_key_bars_fit_and_always_keep_help_and_quit(run: CheckRun) -> None:
 
 def test_the_answer_comes_first(run: CheckRun) -> None:
     result = run.result
-    assert view.plain_lines(view.status_lines(result)) == "Safe to ship?  \u2716 Not yet \u2014 4 things to fix."
+    assert view.plain_lines(view.status_lines(result)) == "Safe to ship?  \u2716 Not yet \u2014 5 things to fix."
     incomplete = result.model_copy(update={
         "status": "incomplete", "counts": result.counts.model_copy(update={"fix_now": 0}),
         "summary": "No problems to fix now in what Polaris could check, but 1 file couldn't be checked."})

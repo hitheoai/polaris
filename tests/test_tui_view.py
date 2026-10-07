@@ -108,18 +108,18 @@ def test_every_state_has_a_glyph_a_word_and_a_style_in_every_palette():
 def test_default_floor_hides_low_issues_but_keeps_questions_with_their_own_count(sample):
     data = sample["data"]
     findings = view.finding_view(data, view.Filters())
-    assert [row.group for row in findings.rows] == ["issue"] * 4 + ["question"]
+    assert [row.group for row in findings.rows] == ["issue"] * 5 + ["question"]
     assert all(theme.at_least(row.severity, "high") for row in findings.rows if row.group == "issue")
     assert findings.issues_below_floor == 5 and findings.questions_shown == 1
     status = view.plain(findings.status(view.Filters()))
-    assert "4 issues, 5 below ▲ HIGH+ (s)" in status and "1 question" in status
+    assert "5 issues, 5 below ▲ HIGH+ (s)" in status and "1 question" in status
     # The floor never hides medium questions, even at its highest.
     assert any(row.group == "question" for row in rows(data, floor="critical"))
     assert not any(row.group == "question" for row in rows(data, questions=False))
     assert "1 question hidden" in view.plain(view.finding_view(data, view.Filters(questions=False)).status(
         view.Filters(questions=False)))
     everything = rows(data, floor="info")
-    assert len([row for row in everything if row.group == "issue"]) == 9
+    assert len([row for row in everything if row.group == "issue"]) == 10
 
 
 def test_floor_cycles_from_high_through_info_and_critical():
@@ -169,7 +169,7 @@ def test_file_tree_shows_coverage_states_and_visible_counts(sample):
     assert labels["app/api/users/route.ts"] == "✓ route.ts  3◆"
     assert labels["app/components/Comment.tsx"] == "✓ Comment.tsx  1?"
     assert labels["scripts/deploy.py"] == "✓ deploy.py", "a medium issue below the floor isn't counted"
-    assert tree.issues == 4 and tree.questions == 1 and tree.state == "partial"
+    assert tree.issues == 5 and tree.questions == 1 and tree.state == "partial"
 
 
 def test_detail_pane_has_exact_code_the_path_the_fix_and_the_explanation(sample):
@@ -259,7 +259,7 @@ def test_coverage_matrix_states_reasons_and_filters(sample):
 def test_what_ran_names_analyzers_scope_gaps_and_imports(sample):
     data = sample["data"]
     text = view.plain_lines(view.what_ran(data, SourceIndex(data)))
-    assert "✓ polaris-ts 0.3.0 · javascript, typescript" in text
+    assert "\u2713 polaris-ts 0.3.1 \u00b7 javascript, typescript" in text
     assert "– semgrep-ce" in text and "disabled" in text
     assert "Checks (16):" in text and "not run (needs a trusted --guard-policy)" in text
     assert "7 files analyzed, 1 not source code, 1 not reviewed" in text
@@ -445,7 +445,7 @@ def test_plain_prints_the_workflow_text_report_with_its_exit_code(sample, capsys
     root = sample["root"]
     code = cli.main(["tui", "--plain", "--root", str(root), "--diff", "main...feature", "--no-external-analyzers"])
     out = capsys.readouterr().out
-    assert code == 1 and out.startswith("Polaris security review · 9 issues to fix")
+    assert code == 1 and out.startswith("Polaris security review · 10 issues to fix")
     path = sample["base"] / "plain-report.json"
     if not path.exists():
         path.write_text(json.dumps(report_json(sample["data"])))
@@ -472,7 +472,7 @@ def test_pr_preview_selection_reviews_the_merge_base_range(sample):
     assert data.pull_request is not None and data.envelope.snapshot.kind == "git_revision"
     assert data.label == "PR preview main...HEAD"
     assert "app/api/users/route.ts" in data.pull_request.changed
-    assert data.envelope.finding_count == 9
+    assert data.envelope.finding_count == 10
 
 
 def test_environment_is_not_mutated_by_the_view_model(sample):

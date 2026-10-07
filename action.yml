@@ -43,7 +43,7 @@ inputs:
     required: true
   version:
     description: The exact Polaris version to install from PyPI. The default is the version this release of the action was made with.
-    default: "0.5.0"
+    default: "0.6.0"
   fail-on:
     description: "When `publish` fails its job: `never` (the default: comments only, advice), `findings` (a flagged high or critical finding on a changed line) or `incomplete` (also when part of the review could not finish)."
     default: never

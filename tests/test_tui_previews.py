@@ -152,9 +152,9 @@ def test_plan_header_rows_and_markdown_are_labelled_and_inert(sample):
     plan = Verifier(data).plan(PlanState())
     header = view.plain_lines(panels.plan_header(plan, PlanState(), data))
     assert "placeholder repository local-preview/unpublished, PR #1 · nothing is published" in header
-    assert "Gate ✖ FAIL · 4 inline" in header and "i inline ▲ HIGH+" in header and "u verify fixes: on" in header
+    assert "Gate ✖ FAIL · 5 inline" in header and "i inline ▲ HIGH+" in header and "u verify fixes: on" in header
     rows = panels.plan_rows(plan)
-    assert [key for key, _ in rows] == ["summary", *(f"comment-{index}" for index in range(4))]
+    assert [key for key, _ in rows] == ["summary", *(f"comment-{index}" for index in range(5))]
     assert view.plain(rows[1][1][0]) == "◆ CRIT"
     body = panels.plan_body(plan, "comment-0")
     assert view.plain(body[0]).startswith("Inline comment at .github/workflows/triage.yml:9")
@@ -189,8 +189,9 @@ def test_preview_tables_fit_the_terminal(width):
 def test_other_tools_groups(sample):
     data = sample["pr"]
     text = view.plain_lines(panels.tools_lines(data))
-    assert "⇄ corroborated (1)" in text and "react.dangerously-set-inner-html" in text
-    assert "↗ tool only (2)" in text and "ERROR · js.child-process · lib/run.ts:4" in text
+    assert "⇄ corroborated (2)" in text and "react.dangerously-set-inner-html" in text
+    assert "js.child-process · lib/run.ts:4" in text  # the shell finding matches the imported result
+    assert "↗ tool only (1)" in text
     assert "[red]markup[/red] \ufffdevil" in text  # imported text is shown, never interpreted
     assert "\u2736 Polaris only (9)" in text and "⊘ left out (1)" in text and "1 outside review scope" in text
     assert "✗ rejected (0)" in text

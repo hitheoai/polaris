@@ -133,7 +133,8 @@ def sarif_document() -> dict[str, Any]:
                    "lib/run.ts", 4),
             result("react.dangerously-set-inner-html", "warning", "dangerouslySetInnerHTML with a non-constant value.",
                    "app/components/Comment.tsx", 2),
-            result("generic.pin-image", "note", "Pin the base image to a digest.", "Dockerfile", 1),
+            result("generic.pin-image", "note", "Pin the base image to a digest [red]markup[/red] \u202eevil",
+                   "Dockerfile", 1),
             result("generic.pin-image", "note", "Outside the review.", "vendor/other.js", 1),
         ],
     }]}

@@ -146,7 +146,7 @@ never by interpolating it into the script.
 
 ```yaml
 include:
-  - remote: https://raw.githubusercontent.com/hitheoai/polaris/v0.5.0/ci/gitlab/polaris.gitlab-ci.yml
+  - remote: https://raw.githubusercontent.com/hitheoai/polaris/v0.6.0/ci/gitlab/polaris.gitlab-ci.yml
 ```
 
 For the hosted model, add a masked CI/CD variable `POLARIS_API_KEY` in the project's settings
@@ -160,7 +160,7 @@ merge request's Code Quality widget (`--format codequality`) and fails on `POLAR
 ```yaml
 repos:
   - repo: https://github.com/hitheoai/polaris
-    rev: v0.5.0
+    rev: v0.6.0
     hooks:
       - id: polaris-review          # or polaris-review-rules for static rules only
 ```

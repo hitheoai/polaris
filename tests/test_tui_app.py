@@ -112,8 +112,8 @@ async def test_cockpit_shows_the_trust_bar_rows_and_details(sample):
         await pilot.pause()
         trust = bar(app, "trust")
         assert "○ SAVED" in trust and "◐ INCOMPLETE" in trust and "offline · no model" in trust
-        assert len(table_rows(app)) == 5 and table_rows(app)[0] == "Workflow expression injection"
-        assert "4 issues, 5 below ▲ HIGH+ (s) · 1 question (v)" in bar(app, "status")
+        assert len(table_rows(app)) == 6 and table_rows(app)[0] == "Workflow expression injection"
+        assert "5 issues, 5 below ▲ HIGH+ (s) · 1 question (v)" in bar(app, "status")
         assert "t walk" in bar(app, "keys") and "? help" in bar(app, "keys")
         details = view.plain_lines(app.detail_lines)
         assert details.startswith("◆ CRITICAL ✖ issue  Workflow expression injection")
@@ -129,17 +129,17 @@ async def test_floor_questions_and_text_filter_keys(sample):
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         await pilot.press("s")
-        assert len(table_rows(app)) == 7 and "below △ MEDIUM+" in bar(app, "status")
+        assert len(table_rows(app)) == 8 and "below △ MEDIUM+" in bar(app, "status")
         await pilot.press("s", "s")
-        assert len(table_rows(app)) == 10
+        assert len(table_rows(app)) == 11
         await pilot.press("v")
-        assert len(table_rows(app)) == 9 and "1 question hidden" in bar(app, "status")
+        assert len(table_rows(app)) == 10 and "1 question hidden" in bar(app, "status")
         await pilot.press("v", "slash", "s", "s", "r", "f")
         assert table_rows(app) == ["Server-side request forgery (SSRF)"]
         await pilot.press("enter")
         assert app.filters.query == "ssrf" and "matching “ssrf”" in bar(app, "status")
         await pilot.press("escape")
-        assert app.filters.query == "" and len(table_rows(app)) == 10
+        assert app.filters.query == "" and len(table_rows(app)) == 11
 
 
 @scenario
@@ -159,7 +159,7 @@ async def test_tree_selection_filters_to_a_file_or_folder(sample):
         assert table_rows(app) == ["Cross-site scripting (XSS)"]
         assert "enter filter to file" in bar(app, "keys")
         await pilot.press("enter")
-        assert app.filters.path is None and len(table_rows(app)) == 5
+        assert app.filters.path is None and len(table_rows(app)) == 6
 
 
 @scenario
@@ -479,16 +479,16 @@ async def test_pr_preview_shows_the_plan_and_recomputes_without_re_verifying(sam
         await pilot.press("5")
         await pilot.pause()
         table = app.query_one(PlanTable)
-        assert app.focused is table and table.row_count == 5  # the summary and four inline comments
+        assert app.focused is table and table.row_count == 6  # the summary and five inline comments
         text = screen_text(app)
-        assert "placeholder repository local-preview/unpublished, PR #1 · nothing is published" in text
-        assert "Gate ✖ FAIL · 4 inline" in text and "### Polaris review" in text
-        assert "Gate ✖ FAIL · 4 inline comment(s) · local preview" in bar(app, "status")
+        assert "placeholder repository local-preview/unpublished, PR #1 \u00b7 nothing is published" in text
+        assert "Gate \u2716 FAIL \u00b7 5 inline" in text and "### Polaris review" in text
+        assert "Gate \u2716 FAIL \u00b7 5 inline comment(s) \u00b7 local preview" in bar(app, "status")
         assert "i inline" in bar(app, "keys") and "? help" in bar(app, "keys")
         assert verify_calls == [], "no suggested edit is eligible at high and above"
         await pilot.press("i")
         await idle(pilot, app)
-        assert app.plan_state.min_inline_severity == "medium" and table.row_count == 7
+        assert app.plan_state.min_inline_severity == "medium" and table.row_count == 8
         assert verify_calls == [2] and "✎ verified" in screen_text(app)
         await pilot.press("g")
         await idle(pilot, app)
@@ -599,7 +599,7 @@ async def test_other_tools_tab_groups_imported_results_as_untrusted_text(sample)
         await pilot.press("4")
         await pilot.pause()
         text = screen_text(app)
-        assert "⇄ corroborated (1)" in text and "↗ tool only (2)" in text and "\u2736 Polaris only" in text
+        assert "⇄ corroborated (2)" in text and "↗ tool only (1)" in text and "\u2736 Polaris only" in text
         # Shown as text (wrapped at this width), never interpreted: markup stays literal, bidi becomes �.
         assert "[red]markup[/red]" in text and "\ufffdevil" in text and "\u202e" not in text
         assert bar(app, "status").startswith("3 imported result(s) from 1 SARIF file(s) · untrusted")
