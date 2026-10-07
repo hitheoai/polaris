@@ -10,6 +10,20 @@ problems and explains each one in plain words: what's wrong, why it matters and 
 
 ## Install
 
+### Homebrew (Apple Silicon macOS)
+
+```sh
+brew install hitheoai/tap/polaris
+```
+
+Homebrew installs Python for you and includes the terminal UI and MCP integration.
+The formula builds from source and uses the built-in analyzers; it does not include
+Semgrep, local-model dependencies or model weights. This is not the separate macOS installer.
+See the [official tap](https://github.com/hitheoai/homebrew-tap) for tested platforms,
+updates and removal.
+
+### Python (pip or uv)
+
 Polaris needs Python 3.11 or newer.
 
 ```sh

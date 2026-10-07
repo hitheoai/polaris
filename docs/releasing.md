@@ -10,11 +10,16 @@ they install came from this repository.
   came from (Trusted Publishing).
 - **A GitHub release** with the same two files, a Sigstore bundle for each file
   (`*.sigstore.json`), GitHub build provenance and a `SHA256SUMS` file.
+- **A Homebrew source formula**, published separately in
+  [hitheoai/homebrew-tap](https://github.com/hitheoai/homebrew-tap), for Apple Silicon macOS.
+  It uses the published source archive and includes the terminal UI and MCP integration,
+  without Semgrep or local-model dependencies. No prebuilt Polaris bottle is published.
 
-Not released yet: the macOS installer and the Homebrew formula. Their tooling is in this
-repository (`packaging/homebrew/`, `packaging/installer/` and the `scripts/*release*` helpers),
-but their licensing and signing review isn't finished, so nothing here claims they are
-available.
+Not released yet: the macOS installer and the legacy managed-analyzer bundle. Their tooling
+remains in this repository (`packaging/homebrew/`, `packaging/installer/` and the
+`scripts/*release*` helpers). The blocked formula in `packaging/homebrew/` is not the public
+source formula. Publishing the separate tap does not approve the managed bundle's licensing,
+signing or acceptance requirements.
 
 ## How a release runs
 
@@ -38,6 +43,24 @@ alone publishes nothing.
 
 Every action in the workflow is pinned to a full commit, and values reach shell scripts only
 through environment variables, never by `${{ }}` interpolation.
+
+## Updating the Homebrew tap
+
+After publishing and verifying the Python release, update `Formula/polaris.rb` in
+[hitheoai/homebrew-tap](https://github.com/hitheoai/homebrew-tap), not this repository's
+legacy bundle template. Verify the source archive's provenance and SHA256, review the
+dependency changes, and follow the tap's maintenance instructions. In particular, preserve
+the documented upstream source archives for native grammars whose PyPI archives omit headers.
+
+Submit a tap pull request and merge only after its required Apple Silicon macOS check passes.
+That check covers style, online audit, source installation, CLI/native-parser/TUI/MCP tests,
+dependency consistency, reinstall and uninstall. Homebrew supplies Python and selected native
+dependencies; it is not a completely frozen toolchain. There is no automatic version bump,
+bottle publication or merge.
+
+Verify the public `brew install hitheoai/tap/polaris` route before announcing availability.
+Tap and documentation changes do not rebuild, replace or retag already-published Python
+release artifacts.
 
 ## One-time setup (maintainers)
 
