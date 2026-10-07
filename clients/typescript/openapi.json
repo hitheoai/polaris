@@ -4629,7 +4629,7 @@
     "description": "Versioned security review and bounded engineering proposals. Legacy Python/model contracts remain separate.\n\n* `POST /v1/review` takes a diff, whole files or a snippet and returns findings (JSON or SARIF).\n* `POST /v1/assess` runs the `polaris.assessment/0.1.0` contract; `POST /v1/assess/batch` runs\n  up to 64 of them at once (the hosted-model client uses it).\n* Findings estimate risk; they never approve, block or authorize anything.\n* `/v1/workflow/review` adds explicit coverage and content binding; `/v1/workflow/propose`\n  validates host candidates. `/v1/workflow/action` assesses configured scope without execution.\n* Project code is parsed, never run. The workflow API defaults to memory-only analysis.\n  An administrator may explicitly enable isolated transient source files for external analyzers.\n  Request bodies are not logged or persistently stored; proposal responses contain scoped edits.\n  No remote apply or arbitrary shell endpoint exists.\n\nSend `Authorization: Bearer <key>` when the server was started with API keys.\n",
     "summary": "Polaris by TheoVex: security review and bounded engineering proposals.",
     "title": "Polaris API",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {

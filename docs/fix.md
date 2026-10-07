@@ -133,10 +133,13 @@ the question (and the files are still listed on stderr); decide first that those
   proposal itself, so the model chooses no file path, hash, finding or command, and anything else a
   reply contains is ignored. Polaris never runs a command a model suggests.
 - The change must stay near the problem and be small, as above.
-- For Python, a fix must keep using the variables the flagged call read. A model that turns
-  `execute("... " + name)` into `execute("... = %s")` removes the injection and the value with it, and
-  the code stops working. A constant query looks safe to the re-check, so Polaris checks this itself
-  (`fix_drops_a_value`). It can't know whether a fix that keeps the value still means the same.
+- For Python, JavaScript and TypeScript, a fix must keep using every value the flagged call read.
+  A model that turns `execute("... " + name)` into `execute("... = %s")`, or that keeps `user` but drops
+  `user.name`, removes the injection and the value with it, and the code stops working. `user["name"]`
+  counts as `user.name`. A constant query looks safe to the re-check, so Polaris checks this itself
+  (`fix_drops_a_value`). It does not follow a value into another variable, it skips a name that only a
+  callback reads, and it does not guess about code it cannot parse or about other languages. It can't
+  know whether a fix that keeps the value still means the same.
 - Polaris checks the fixed code again in memory: the problem must be gone and nothing new may
   appear. A secret in your file or in the answer stops the file from being sent or the answer from
   being used.

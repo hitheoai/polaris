@@ -275,6 +275,6 @@ def test_public_entry_points_and_module_metadata_agree():
 
     root = Path(__file__).resolve().parents[1]
     project = tomllib.loads((root / "pyproject.toml").read_text())["project"]
-    assert project["version"] == polaris.__version__ == "0.5.0"
+    assert project["version"] == polaris.__version__ == "0.6.0"
     assert project["scripts"]["polaris"] == "polaris.cli:main"
     assert project["scripts"]["theo"] == "polaris.onboarding.cli:main"

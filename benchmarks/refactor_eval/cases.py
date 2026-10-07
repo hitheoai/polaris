@@ -72,6 +72,20 @@ CASES: list[dict[str, Any]] = [
     # execute("... = %s") with no argument fails at run time, and a constant query looks safe.
     {"id": "fix-drops-the-value", "live": False, "files": {"db.py": SQL}, "expect": "fix_drops_a_value",
      "answer": {"edits": [(QUERY, '"SELECT * FROM people WHERE name = %s"')]}},
+    # The same failure with an attribute, and in JavaScript: keeping the root is not keeping the value.
+    {"id": "fix-drops-an-attribute", "live": False,
+     "files": {"db.py": 'def search(db, user):\n    return db.execute("SELECT * FROM people WHERE name = " + user.name)\n'},
+     "expect": "fix_drops_a_value",
+     "answer": {"file": 'def search(db, user):\n    return db.execute("SELECT * FROM people WHERE name = ?", (user,))\n'}},
+    # An exported helper is only a question. The route registration is a finding, so the gate runs.
+    {"id": "js-fix-drops-the-value", "live": False,
+     "files": {"run.js": ('const express = require("express");\nconst { exec } = require("child_process");\n'
+                         'const app = express();\napp.get("/run", (req, res) => {\n'
+                         '  exec("ping -c 1 " + req.query.host);\n});\n')},
+     "expect": "fix_drops_a_value",
+     "answer": {"file": ('const express = require("express");\nconst { exec } = require("child_process");\n'
+                          'const app = express();\napp.get("/run", (req, res) => {\n'
+                          '  exec("ping -c 1");\n});\n')}},
     {"id": "syntax-error", "live": False, "files": {"db.py": SQL}, "expect": "edited_file_not_fully_checked",
      "answer": {"file": "def (:\n"}},
     {"id": "no-change", "live": False, "files": {"db.py": SQL}, "expect": "ai_invalid_candidate", "answer": {"edits": []}},

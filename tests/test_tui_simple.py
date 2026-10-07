@@ -120,13 +120,13 @@ async def test_checking_then_results_then_a_problem_and_back(sample):
         await settle(pilot, app)
         text = screen_text(app)
         assert "\u2736 POLARIS   sample \u00b7 the changes in main...feature \u00b7 checked just now" in text
-        assert "Safe to ship?  \u2716 Not yet \u2014 4 things to fix." in text
+        assert "Safe to ship?  \u2716 Not yet \u2014 5 things to fix." in text
         assert "\u25cf Fix now" in text and "? Check this (1)" in text
         assert "\u25cb Worth a look (5) \u2014 press w to show" in text
         assert "Checked 7 files. 1 couldn't be checked (Polaris can't check Go files yet)." in text
         assert f"\u25b6 {WORKFLOW}" in text and "triage.yml" in text
         assert app.exit_code == 1 and chosen(app) == WORKFLOW
-        await pilot.press("down", "down", "down")
+        await pilot.press("down", "down", "down", "down")
         assert chosen(app) == DELETE
         await pilot.press("enter")
         assert isinstance(app.screen, ProblemScreen) and app.screen.item.title == DELETE
@@ -161,15 +161,15 @@ async def test_worth_a_look_is_folded_until_w(sample):
     app, _ = make(sample)
     async with app.run_test(size=(80, 24)) as pilot:
         await settle(pilot, app)
-        assert len(shown(app)) == 5 and "Something runs with more power than it needs" not in screen_text(app)
+        assert len(shown(app)) == 6 and "Something runs with more power than it needs" not in screen_text(app)
         await pilot.press("w")
         text = screen_text(app)
         assert "\u25cb Worth a look (5) \u2014 press w to hide" in text
-        assert "Something runs with more power than it needs" in text and len(shown(app)) == 10
+        assert "Something runs with more power than it needs" in text and len(shown(app)) == 11
         await pilot.press("end")
         assert chosen(app) == "You download and run a script without checking it"
         await pilot.press("w")
-        assert len(shown(app)) == 5 and chosen(app) == "Attackers could run scripts in your users' browsers"
+        assert len(shown(app)) == 6 and chosen(app) == "Attackers could run scripts in your users' browsers"
         assert "press w to show" in screen_text(app)
 
 
@@ -188,7 +188,7 @@ async def test_copying_one_fix_or_all_of_them_shows_the_text(sample):
         await pilot.press("a")
         assert isinstance(app.screen, CopyScreen) and app.clipboard == combined_prompt(result)
         assert "Copied all the fixes for your AI" in screen_text(app)
-        await pilot.press("escape", "down", "down", "down", "enter", "c")
+        await pilot.press("escape", "down", "down", "down", "down", "enter", "c")
         assert isinstance(app.screen, CopyScreen)
         assert app.clipboard == next(item for item in result.items if item.title == DELETE).prompt
 
@@ -198,7 +198,7 @@ async def test_technical_details_only_after_t(sample):
     app, _ = make(sample)
     async with app.run_test(size=(120, 40)) as pilot:
         await settle(pilot, app)
-        await pilot.press("down", "down", "down", "enter")
+        await pilot.press("down", "down", "down", "down", "enter")
         assert "CWE-862" not in screen_text(app) and "t technical details" in view.plain(
             app.screen.query_one("#keys", Bar).value)
         await pilot.press("t")
@@ -215,7 +215,7 @@ async def test_check_again_runs_a_new_check_and_keeps_the_choice(sample):
     app, runner = make(sample)
     async with app.run_test(size=(80, 24)) as pilot:
         await settle(pilot, app)
-        await pilot.press("down", "down", "down")
+        await pilot.press("down", "down", "down", "down")
         runner.hold = True
         await pilot.press("r")
         await checking(pilot, app)
@@ -497,7 +497,7 @@ async def test_simple_screens_use_plain_words(sample):
         async with other.run_test(size=(120, 40)) as pilot:
             await settle(pilot, other)
             texts.append(screen_text(other))
-    assert len(texts) == 15  # checking, results, 10 problems, help, all clear, a problem that stopped the check
+    assert len(texts) == 16  # checking, results, 11 problems, help, all clear, a problem that stopped the check
     for text in texts:
         assert not JARGON.findall(text), JARGON.findall(text)
 
@@ -516,7 +516,7 @@ async def test_a_folder_without_git_is_checked_and_explained(tmp_path):
         assert ("This folder doesn't use Git, so Polaris checked all of its files (it skipped dependency and build "
                 "folders: node_modules).") in words(text)
         assert app.outcome is not None and app.outcome.result.since_last_check is None
-        await pilot.press("down", "down", "enter")
+        await pilot.press("down", "down", "down", "enter")
         assert "15 \u2502   await db.user.delete({ where: { id: id! } });" in screen_text(app)
 
 
@@ -530,7 +530,7 @@ async def test_checking_again_says_what_changed_since_the_last_check(tmp_path):
         assert "Since your last check" not in screen_text(app)
         await pilot.press("r")
         await settle(pilot, app)
-        assert "Since your last check: 0 fixed, 0 new, 10 still open." in screen_text(app)
+        assert "Since your last check: 0 fixed, 0 new, 11 still open." in screen_text(app)
 
 
 @scenario
@@ -596,7 +596,7 @@ async def test_o_opens_the_editor_only_after_the_key_and_inside_the_project(samp
             await pilot.press("down", "up", "w", "w", "question_mark", "escape", "c", "escape")
             assert calls == []
             await pilot.press("o")
-            await pilot.press("down", "down", "down", "enter", "o")
+            await pilot.press("down", "down", "down", "down", "enter", "o")
     root = sample["root"]
     assert calls == [
         (["nvim", "-u", "NONE", "+9", str(root / ".github/workflows/triage.yml")], root),

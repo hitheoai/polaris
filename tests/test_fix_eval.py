@@ -37,7 +37,7 @@ def replay(runner):
 
 def test_every_scripted_case_behaves_as_expected(replay):
     assert replay["mismatches"] == [] and replay["mode"] == "replay" and replay["scripted"] is True
-    assert replay["cases"] == len(replay["results"]) == 17
+    assert replay["cases"] == len(replay["results"]) == 19
     assert all(item["result"] == item["expected"] for item in replay["results"])
 
 
@@ -57,7 +57,8 @@ def test_the_case_the_checks_cannot_catch_is_shown_not_hidden(replay):
 
 
 def test_only_the_file_asked_about_is_ever_sent(replay):
-    assert all(item["sent"] in ([], ["db.py"], ["ping.py"], ["fetch.py"], ["web.py"]) for item in replay["results"])
+    assert all(item["sent"] in ([], ["db.py"], ["ping.py"], ["fetch.py"], ["web.py"], ["run.js"])
+               for item in replay["results"])
 
 
 def test_replay_is_deterministic_and_carries_no_date(runner, replay):

@@ -37,11 +37,14 @@ is small: read these as findings about Polaris, not as a score for any model.
 - With that fixed, six of seven answers passed the static re-review, and four of those six were
   broken: on the SQL tasks the model replaced `execute("... " + name)` with `execute("... = %s")` and dropped
   `name`, which removes the injection and the value. A constant query looks safe to the re-review,
-  so "verified" was wrong. Polaris now refuses a fix that stops using a name the flagged call read
-  (`fix_drops_a_value`, Python). With that check, 2 of 7 tasks verified, both correct, 4 were stopped
+  so "verified" was wrong. Polaris then refused a fix that stops using a name the flagged call read
+  (`fix_drops_a_value`). With that check, 2 of 7 tasks verified, both correct, 4 were stopped
   for dropping a value and 1 still had the problem. The failure is now a scripted regression case.
-- The check can miss things: it reads names in the flagged call's arguments, only in Python, and
-  does not know whether the code still means the same. Verified still never means correct.
+- The check can still miss things. It reads values in the flagged call's own arguments, in Python,
+  JavaScript and TypeScript, including an attribute (`user.name` is not kept by mentioning `user`).
+  It does not follow a value into another variable, it skips a name that only a callback reads, and
+  it does not know whether code that keeps the value still means the same. Verified still never means
+  correct.
 
 ## Live
 

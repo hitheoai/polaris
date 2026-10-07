@@ -33,7 +33,7 @@ from polaris.review.models import (
 )
 
 ANALYZER_ID = "polaris-ts"
-VERSION = "polaris-ts/0.3.0"
+VERSION = "polaris-ts/0.3.1"
 CHECKS = (
     "sql_injection", "command_injection", "code_injection", "xss", "ssrf", "open_redirect",
     "path_traversal", "secret_exposure", "missing_authorization", "insecure_auth_crypto",
@@ -41,7 +41,7 @@ CHECKS = (
 )
 LIMITATIONS = [
     "Function-level data flow with summaries across reviewed and related files; not whole-program analysis.",
-    "Entry points: Next.js route handlers, pages, middleware and server actions, pages/api, Express/Hono/Fastify registrations, client URL APIs.",
+    "Entry points: Next.js route handlers, pages, middleware and server actions, pages/api, Express/Hono/Fastify registrations, returned (req, res, next) middleware, client URL APIs.",
     "Calls into unresolved packages don't carry taint unless they are known string/URL/path helpers.",
     "Validation recognized: allowlist/prefix/equality checks with early exits, known sanitizers, constrained zod/valibot schemas.",
     "missing_authorization recognizes common guard names and configured [workflow].auth_guards; middleware-only auth needs public_routes or auth_guards.",
@@ -63,6 +63,7 @@ KIND_LABEL = {
     "request": "request input", "route_param": "route parameter", "url_input": "URL query input",
     "client_input": "browser URL input", "action_input": "server action argument", "argv": "command-line argument",
     "message_data": "postMessage data", "page_prop": "page URL params", "secret_env": "secret environment value",
+    "library_input": "argument of a public function",
 }
 # Reviewed files are parsed and analyzed in batches (syntax trees cost ~25x the source size);
 # other files are parsed on demand as context and released with their batch.
@@ -287,6 +288,10 @@ def _public(path: str, patterns: Sequence[str]) -> bool:
                for pattern in patterns)
 
 
+def _traces_another_file(finding: WorkflowFinding) -> bool:
+    return any(step.path and step.path != finding.path for step in finding.trace)
+
+
 def _trace(hit: Any, *, secret: bool = False, caller: str | None = None) -> list[TraceStep]:
     """Source-to-sink hops. `caller` labels hops in the calling file when the finding is
     reported at a sink in another (reviewed) file."""
@@ -383,7 +388,12 @@ class TypeScriptAnalyzer:
                             for check in checks)
         unique: dict[tuple[str, int, str, str], WorkflowFinding] = {}
         for finding in findings:
-            unique.setdefault((finding.path, finding.start_line, finding.check_id, finding.rule_id), finding)
+            marker = (finding.path, finding.start_line, finding.check_id, finding.rule_id)
+            previous = unique.get(marker)
+            # A public function that interpolates its own argument is a finding on its own. When a
+            # caller in this review actually passes request input, that trace is the one to keep.
+            if previous is None or (_traces_another_file(finding) and not _traces_another_file(previous)):
+                unique[marker] = finding
         return AnalyzerResult(findings=tuple(unique.values()), coverage=tuple(coverage), capability=capability(),
                               surface=tuple(entry for entry in surface.values() if entry.path not in failures))
 

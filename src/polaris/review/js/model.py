@@ -21,6 +21,9 @@ ALL_CHECKS = INJECTION_CHECKS | {"secret_exposure"}
 REAL_KINDS = frozenset({
     "request", "route_param", "url_input", "client_input", "action_input", "argv", "message_data",
     "page_prop",
+    # A public function builds a shell command or regular expression from its own argument. Callers
+    # cannot make that safe; the argument is attacker-controlled at the library boundary.
+    "library_input",
 })
 SECRET_KIND = "secret_env"
 MAX_STEPS = 6
@@ -235,6 +238,13 @@ SANITIZERS: dict[str, frozenset[str]] = {
     "escapeHTML": frozenset({"xss"}),
     "he.encode": frozenset({"xss"}),
     "he.escape": frozenset({"xss"}),
+    # These escape regular-expression metacharacters. A bare `escape()` is not one of them:
+    # that name is also used for HTML, and HTML escaping does not make a pattern safe.
+    "escapeStringRegexp": frozenset({"code_injection"}),
+    "escape-string-regexp": frozenset({"code_injection"}),
+    "escapeRegExp": frozenset({"code_injection"}),
+    "lodash.escapeRegExp": frozenset({"code_injection"}),
+    "_.escapeRegExp": frozenset({"code_injection"}),
     "validator.escape": frozenset({"xss"}),
     "lodash.escape": frozenset({"xss"}),
     "_.escape": frozenset({"xss"}),
@@ -380,12 +390,19 @@ def _rules() -> None:
     rule(js + "code_injection.dynamic_module", "code_injection", "Module path chosen by input",
          "Untrusted input chooses which module is loaded.",
          "Load modules from a fixed allowlist map instead of a user-supplied path.", severity="high")
+    rule(js + "code_injection.regexp", "code_injection", "Regular expression built from input",
+         "Untrusted input is interpolated into a regular expression.",
+         "Escape the value (or reject metacharacters) before building the pattern, or use a fixed expression.",
+         severity="high", cwe="CWE-730")
     rule(js + "xss.dangerously_set_inner_html", "xss", "Unsanitized dangerouslySetInnerHTML",
          "A value that isn't sanitized is rendered as raw HTML with dangerouslySetInnerHTML.",
          "Render the text as children, or sanitize it with DOMPurify.sanitize(html) right before rendering.")
     rule(js + "xss.dom_html", "xss", "HTML written to the DOM",
          "Untrusted input is written to the DOM as HTML (innerHTML/outerHTML/insertAdjacentHTML/document.write).",
          "Use textContent / createTextNode, or sanitize with DOMPurify before inserting HTML.")
+    rule(js + "xss.jquery_html", "xss", "jQuery HTML interpretation",
+         "A dynamic string is passed to $() / jQuery(), which interprets a string that starts with < as HTML.",
+         "Use $(document).find(selector) or a DOM API for an element, and never pass an attribute value to $().")
     rule(js + "xss.html_response", "xss", "Reflected HTML response",
          "Untrusted input is embedded in an HTML response.",
          "Escape values for HTML (or use a template engine that escapes by default) and set a strict CSP.")
@@ -442,7 +459,12 @@ def _rules() -> None:
     rule(js + "unsafe_security_configuration.tls_disabled", "unsafe_security_configuration",
          "TLS certificate verification disabled",
          "TLS certificate verification is turned off, allowing man-in-the-middle interception.",
-         "Remove rejectUnauthorized: false / NODE_TLS_REJECT_UNAUTHORIZED=0 and configure the correct CA instead.")
+         "Remove rejectUnauthorized: false, strictSSL: false or NODE_TLS_REJECT_UNAUTHORIZED=0 and trust the right CA instead.")
+    rule(js + "unsafe_security_configuration.cleartext_download", "unsafe_security_configuration",
+         "Installer downloaded over cleartext HTTP",
+         "An installer or package URL uses http://, so the download can be replaced in transit.",
+         "Use https:// for the download, and check a checksum before running what was downloaded.",
+         cwe="CWE-829")
     rule(js + "unsafe_security_configuration.cors_credentials", "unsafe_security_configuration",
          "Credentialed CORS for any origin",
          "CORS allows credentials together with a wildcard or reflected origin.",

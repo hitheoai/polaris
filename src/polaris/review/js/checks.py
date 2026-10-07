@@ -22,8 +22,13 @@ from polaris.review.js.engine import (
 
 SECURITY_NAME = re.compile(
     r"(?i)(token|secret|nonce|otp|password|passwd|salt|session|csrf|xsrf|reset|invite|api_?key|"
-    r"access_?key|secret_?key|verification|verify|auth|signature|magic_?link|one_?time|passcode|pin_?code)"
+    r"access_?key|secret_?key|verification|verify|auth|signature|magic_?link|one_?time|passcode|pin_?code|"
+    r"generate_?id|randomatic|random_?string|random_?token)"
 )
+CLEARTEXT_URL = re.compile(r"^http://(?!(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?:[:/]|$))")
+DOWNLOAD_NAME = re.compile(r"(?i)(url|installer|download|mirror)")
+DOWNLOAD_FILE = re.compile(r"(?i)\.(?:exe|msi|dmg|pkg|zip|tar|gz|tgz|deb|rpm)(?:$|[?#])")
+TLS_OFF = frozenset({"rejectUnauthorized", "strictSSL"})
 NOT_SECURITY_NAME = re.compile(r"(?i)(color|colour|style|anim|delay|jitter|retry|backoff|sample|shuffle|offset)")
 SESSION_COOKIE = re.compile(r"(?i)(session|token|auth|sid|jwt|refresh|remember|login)")
 PUBLIC_SECRET = re.compile(r"NEXT_PUBLIC_[A-Z0-9_]+")
@@ -73,7 +78,19 @@ class PatternHit:
     confidence: str = "high"
 
 
-def _enclosing_names(node: Any, depth: int = 7) -> list[str]:
+_FUNCTION_BOUNDARY = frozenset({
+    "function_declaration", "generator_function_declaration", "function_expression", "function",
+    "arrow_function", "method_definition", "generator_function",
+})
+
+
+def _enclosing_names(node: Any, depth: int = 40) -> list[str]:
+    """Names that bind this expression, out to the function that contains it.
+
+    Expression nesting (`parseInt(fn() * mask.length)`) is not a new scope. Stopping after a
+    handful of parents missed `Math.random()` inside `randomatic` because the call sits under a
+    `while` and two other calls. An anonymous callback does not inherit the outer function's name.
+    """
     names: list[str] = []
     current = node.parent
     while current is not None and depth > 0:
@@ -89,22 +106,28 @@ def _enclosing_names(node: Any, depth: int = 7) -> list[str]:
         elif kind == "pair":
             key = current.child_by_field_name("key")
             if key is not None:
-                names.append(txt(key))
+                names.append(string_value(key) or txt(key))
         elif kind == "jsx_attribute":
             parts = named(current)
             if parts:
                 names.append(txt(parts[0]))
-        elif kind in ("function_declaration", "method_definition"):
+        elif kind in _FUNCTION_BOUNDARY:
             name = current.child_by_field_name("name")
             if name is not None:
                 names.append(txt(name))
-            break
-        elif kind == "arrow_function":
             parent = current.parent
             if parent is not None and parent.type == "variable_declarator":
-                name = parent.child_by_field_name("name")
-                if name is not None:
-                    names.append(txt(name))
+                bound = parent.child_by_field_name("name")
+                if bound is not None:
+                    names.append(txt(bound))
+            elif parent is not None and parent.type in ("assignment_expression", "augmented_assignment_expression"):
+                bound = parent.child_by_field_name("left")
+                if bound is not None:
+                    names.append(txt(bound))
+            elif parent is not None and parent.type == "pair":
+                key = parent.child_by_field_name("key")
+                if key is not None:
+                    names.append(string_value(key) or txt(key))
             break
         current = current.parent
         depth -= 1
@@ -118,6 +141,13 @@ def _statement_text(node: Any) -> str:
     ):
         current = current.parent
     return txt(current)[:2_000]
+
+
+def _cleartext_download(value: Any, name: str) -> bool:
+    text = string_value(value)
+    if text is None or not CLEARTEXT_URL.match(text):
+        return False
+    return bool(DOWNLOAD_NAME.search(name) or DOWNLOAD_FILE.search(text))
 
 
 def _pairs(node: Any) -> dict[str, Any]:
@@ -166,18 +196,26 @@ def scan(file: JsFile) -> list[PatternHit]:
         if kind == "pair":
             key = node.child_by_field_name("key")
             value = node.child_by_field_name("value")
-            if key is not None and value is not None and (string_value(key) or txt(key)) == "rejectUnauthorized" \
-                    and txt(value) == "false" and not test_path:
+            key_name = (string_value(key) or txt(key)) if key is not None else ""
+            if key is not None and value is not None and key_name in TLS_OFF and txt(value) == "false" and not test_path:
                 old = re.sub(r"\s+", " ", txt(node))
                 hits.append(PatternHit("unsafe_security_configuration", "polaris.js.unsafe_security_configuration.tls_disabled",
-                                       line_of(node), "rejectUnauthorized: false", replace_old=old,
+                                       line_of(node), f"{key_name}: false", replace_old=old,
                                        replace_new=old.replace("false", "true")))
+            elif value is not None and _cleartext_download(value, key_name) and not test_path:
+                hits.append(PatternHit("unsafe_security_configuration",
+                                       "polaris.js.unsafe_security_configuration.cleartext_download", line_of(node),
+                                       string_value(value) or txt(value)))
         elif kind == "assignment_expression":
             left = txt(node.child_by_field_name("left") or node)
             right = node.child_by_field_name("right")
             if "NODE_TLS_REJECT_UNAUTHORIZED" in left and right is not None and (string_value(right) == "0" or txt(right) == "0"):
                 hits.append(PatternHit("unsafe_security_configuration", "polaris.js.unsafe_security_configuration.tls_disabled",
                                        line_of(node), "NODE_TLS_REJECT_UNAUTHORIZED = 0"))
+            elif right is not None and _cleartext_download(right, left) and not test_path:
+                hits.append(PatternHit("unsafe_security_configuration",
+                                       "polaris.js.unsafe_security_configuration.cleartext_download", line_of(node),
+                                       string_value(right) or txt(right)))
         elif kind == "object":
             pairs = _pairs(node)
             origin = pairs.get("origin")
