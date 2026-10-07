@@ -164,8 +164,12 @@ def _envelope(
     if not reviewed:
         notices.append("No selected changed files were found; this is not a review of the entire repository.")
     notices.extend(extra_notices)
+    # How long a review took says nothing about what it found: the id must be the same for the same
+    # review, so a person or a script can tell that two runs reached the same result.
+    identity = report.model_dump(mode="json")
+    identity["summary"]["elapsed_ms"] = 0.0
     return WorkflowEnvelope(
-        report_id=digest_json({"snapshot": snapshot.model_dump(mode="json"), "review": report.model_dump(mode="json")}),
+        report_id=digest_json({"snapshot": snapshot.model_dump(mode="json"), "review": identity}),
         status=status, summary=summary, finding_count=flagged, snapshot=snapshot,
         changes=_changes(reviewed, submitted=snapshot.kind == "submitted_content"),
         context=context, review=report, notices=notices,

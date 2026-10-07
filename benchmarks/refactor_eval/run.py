@@ -68,8 +68,7 @@ def scripted(answer: dict[str, Any]) -> GenerationTransport:
             raise TransportError(answer["error"])
         if "status" in answer:
             return HTTPResult(answer["status"], b"")
-        source = user["untrusted_sources"][0]
-        text = source["content"]
+        text = user["untrusted_file"]
         if "raw" in answer:
             content = answer["raw"]
         else:
@@ -77,11 +76,8 @@ def scripted(answer: dict[str, Any]) -> GenerationTransport:
                 text = answer["file"]
             for old, new in answer.get("edits", ()):
                 text = text.replace(old, new)
-            content = json.dumps({
-                "edits": [{"path": answer.get("path", source["path"]), "before_sha256": source["sha256"],
-                           "replacement": text,
-                           "finding_refs": [user["reviewed_snapshot"]["finding_refs"][0]["finding_id"]]}],
-                "rationale": "Scripted answer.", "verification_commands": []})
+            # The reply is the corrected file plus a sentence; whatever else a model adds is ignored.
+            content = json.dumps({"replacement": text, "rationale": "Scripted answer.", **answer.get("extra", {})})
         reply = {"choices": [{"index": 0, "finish_reason": "stop",
                               "message": {"role": "assistant", "content": content}}],
                  "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}
@@ -102,7 +98,7 @@ def _project(root: Path, files: dict[str, str]) -> None:
 
 
 def run_case(case: dict[str, Any], settings: AiSettings, config: GenerationConfig,
-             transport: GenerationTransport | None) -> dict[str, Any]:
+             transport: GenerationTransport | None, *, live: bool = False) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="polaris-eval-") as temporary:
         root = Path(temporary).resolve() / "project"
         _project(root, case["files"])
@@ -113,8 +109,14 @@ def run_case(case: dict[str, Any], settings: AiSettings, config: GenerationConfi
         plan = build_plan(root, review, [generator], limit=1)
     item = plan.items[0] if plan.items else None
     status = "not_flagged" if item is None else "verified" if item.status == "verified" else item.reason
-    return {"id": case["id"], "result": status, "changed_lines": item.changed_lines if item else 0,
-            "expected": case["expect"], "sent": sorted(generator.sent), **({"limit": case["limit"]} if "limit" in case else {})}
+    result = {"id": case["id"], "result": status, "changed_lines": item.changed_lines if item else 0,
+              "expected": case["expect"], "sent": sorted(generator.sent),
+              **({"limit": case["limit"]} if "limit" in case else {})}
+    if live and item is not None and item.proposal:
+        # "verified" means the problem is gone and nothing new appears, not that the code is right:
+        # a live report carries each diff so a person can judge the changes.
+        result["diff"] = item.proposal["diff"]
+    return result
 
 
 def summarize(results: list[dict[str, Any]], *, mode: str, model: str) -> dict[str, Any]:
@@ -146,8 +148,9 @@ def evaluate(*, live: bool = False, cases: list[dict[str, Any]] | None = None) -
         settings = load_settings()
         config = generation_config(settings)
         model = settings.model
-        for case in chosen:
-            results.append(run_case(case, settings, config, None))
+        # Only the distinct fix tasks: the other cases script a failure mode and would repeat a snippet.
+        for case in (item for item in chosen if item.get("live", True)):
+            results.append(run_case(case, settings, config, None, live=True))
         return summarize(results, mode="live", model=model)
     settings = AiSettings(ENDPOINT, "scripted-replay", False, None, Path("-"))
     config = GenerationConfig(enabled=True, endpoint=ENDPOINT, model="scripted-replay")
@@ -163,8 +166,11 @@ def render(report: dict[str, Any]) -> str:
     for result in report["results"]:
         mark = "ok  " if result["result"] == result["expected"] or report["mode"] == "live" else "FAIL"
         lines.append(f"  {mark} {result['id']}: {result['result']}")
-        if "limit" in result:
+        if "limit" in result and report["mode"] == "replay":  # about the scripted answer, not a model's
             lines.append(f"       note: {result['limit']}")
+        for diff_line in (result.get("diff") or "").splitlines():
+            if not diff_line.startswith(("---", "+++")):
+                lines.append(f"       | {diff_line}")
     # A replay's rate would only describe the hand-written corpus, so it is not printed there.
     rate = f" ({report['verified_rate']:.0%})" if report["mode"] == "live" else ""
     lines += ["", f"cases {report['cases']} · verified {report['verified']}{rate} · "

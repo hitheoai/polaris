@@ -96,7 +96,9 @@ class AiGenerator:
             {finding.path: text}, context=supplied_context(self._review.envelope, self._config, self._runtime),
             finding_refs=[reference])
         source = GenerationSource(path=finding.path, sha256=digest_text(text), content=text)
-        return GenerationRequest(snapshot=snapshot, goal=self._goal(finding), sources=(source,))
+        # reply="file": the model returns only the corrected file. Polaris builds the envelope, so the
+        # model controls no path, digest, finding reference or command.
+        return GenerationRequest(snapshot=snapshot, goal=self._goal(finding), sources=(source,), reply="file")
 
     def __call__(self, finding: WorkflowFinding, text: str) -> Candidate | Declined | None:
         name = self._settings.model[:200]

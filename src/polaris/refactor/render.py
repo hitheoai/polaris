@@ -15,6 +15,7 @@ REASONS = {
     "source_unavailable": "the file couldn't be read",
     "change_outside_scope": "the fix changed code far from the problem",
     "change_too_large": "the fix was too big to review safely",
+    "fix_drops_a_value": "the fix stops using a value the original call used, so it would change what the code does",
     "finding_still_detected": "the fix didn't clear the problem",
     "edit_adds_findings": "the fix would add another problem",
     "edited_file_not_fully_checked": "the fixed file couldn't be fully checked",

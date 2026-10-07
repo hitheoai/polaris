@@ -433,8 +433,16 @@ def run(args: argparse.Namespace) -> int:
         reason = problem.code if problem.code in SARIF_ERRORS else "invalid_sarif"
         _emit({"format": "polaris.workflow-error/0.1.0", "code": reason, "message": SARIF_ERRORS[reason]}, None)
         return 2
-    except (PolarisError, IntegrationProblem, OnboardingProblem, ValidationError, OSError, ValueError, RuntimeError):
+    except (PolarisError, IntegrationProblem, OnboardingProblem, ValidationError, OSError, ValueError, RuntimeError) as problem:
         # Do not print exception messages: JSON/parser/path errors may contain source or credentials.
+        # The one exception is an IntegrationProblem about a symbolic link, whose message is a fixed
+        # diagnostic: it gets its own code because the cause is easy to fix and hard to guess.
+        if isinstance(problem, IntegrationProblem) and "symbolic link" in str(problem):
+            _emit({"format": "polaris.workflow-error/0.1.0", "code": "path_is_symlink",
+                   "message": "The project folder, or a folder above it, is a symbolic link. Polaris refuses "
+                              "those so a link can't point a review somewhere else. Use the real path "
+                              "(on macOS, /private/tmp instead of /tmp)."}, None)
+            return 2
         _emit({"format": "polaris.workflow-error/0.1.0", "code": "workflow_unavailable",
                "message": "Invalid, unavailable or stale input/context; review did not complete."}, None)
         return 2

@@ -13,15 +13,35 @@ uv run python benchmarks/refactor_eval/run.py --live --yes-send   # ask your own
 
 `cases.py` holds vulnerable snippets, each with a **scripted** answer: written by hand, not recorded
 from a model. Some answers fix the problem. Others don't fix it, add a new problem, change code far
-away, break the syntax, answer for another file, leak a secret, aren't JSON, or fail with an HTTP
-error. Each case says what Polaris must do with the answer. The run exits `1` if any case behaves
-differently, so a change that weakens a check is caught. CI runs it through `tests/test_fix_eval.py`.
+away, drop a value the original call used, break the syntax, leak a secret, aren't JSON, or fail
+with an HTTP error. One answer carries extra fields that Polaris must ignore. Each case says what
+Polaris must do with the answer. The run exits `1` if any case behaves differently, so a change
+that weakens a check is caught. CI runs it through `tests/test_fix_eval.py`.
 
 One case passes on purpose and is marked: a model that obeys a comment in the code and deletes an
 unused function. The problem is gone and nothing new appears, so Polaris accepts it. Polaris can't
 tell that behavior changed, which is why a person reads every diff before it is applied.
 
 Replay numbers describe the hand-written corpus. Don't quote them as a model's quality.
+
+## What the first live run found
+
+The first live run (2026-10-06, `qwen2.5-coder:1.5b` through Ollama on the same computer, so nothing
+left it) taught more than it measured. It is seven tasks, far too few for a rate, and a 1.5B model
+is small: read these as findings about Polaris, not as a score for any model.
+
+- The model answered the first version of the request with the wrong shape every time: it was
+  asked to repeat file hashes and finding ids and got them wrong. Polaris now asks only for the
+  corrected file and builds the digest-bound envelope itself (`reply="file"`), so a model controls
+  no path, hash, finding reference or command. Whatever else a reply holds is ignored.
+- With that fixed, six of seven answers passed the static re-review, and four of those six were
+  broken: on the SQL tasks the model replaced `execute("... " + name)` with `execute("... = %s")` and dropped
+  `name`, which removes the injection and the value. A constant query looks safe to the re-review,
+  so "verified" was wrong. Polaris now refuses a fix that stops using a name the flagged call read
+  (`fix_drops_a_value`, Python). With that check, 2 of 7 tasks verified, both correct, 4 were stopped
+  for dropping a value and 1 still had the problem. The failure is now a scripted regression case.
+- The check can miss things: it reads names in the flagged call's arguments, only in Python, and
+  does not know whether the code still means the same. Verified still never means correct.
 
 ## Live
 

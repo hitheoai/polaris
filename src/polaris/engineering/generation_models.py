@@ -92,6 +92,16 @@ class GenerationRequest(EngineeringModel):
     goal: Text = Field(repr=False)
     sources: Annotated[tuple[GenerationSource, ...], Field(min_length=1, max_length=64, repr=False)]
     context_sources: Annotated[tuple[GenerationSource, ...], Field(max_length=64, repr=False)] = ()
+    # "proposal": the model returns the whole proposal envelope (edits, hashes, finding ids, commands).
+    # "file": the model returns only the corrected file of the single source; Polaris builds the
+    # envelope itself, so the model controls no path, hash, finding reference or command.
+    reply: Literal["proposal", "file"] = "proposal"
+
+    @model_validator(mode="after")
+    def one_file_for_a_file_reply(self) -> Self:
+        if self.reply == "file" and len(self.sources) != 1:
+            raise ValueError("a file reply needs exactly one source")
+        return self
 
     @model_validator(mode="after")
     def exact_snapshot_content(self) -> Self:

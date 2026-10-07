@@ -3,6 +3,29 @@
 What changed in each Polaris release. Before 1.0, a minor version can change commands and
 output formats; the changes are listed here.
 
+## Unreleased
+
+- **The same review now has the same report id.** `report_id` (and the SARIF `reportId`) covered how
+  long the review took, so two identical runs got different ids. It no longer does. If your scripts
+  compared ids across runs, they can now rely on them.
+- **A project reached through a symbolic link gets a clear error** (`path_is_symlink`) from
+  `polaris workflow review`, instead of a generic one. Polaris still refuses such paths; on macOS,
+  `/tmp` is one, so use `/private/tmp`.
+- **`polaris fix --ai` is now validated against a real local model**, and the run found and fixed
+  two problems. A model is now asked only for the corrected file; Polaris builds the rest of the
+  proposal, so a model chooses no path, hash, finding or command. And Python fixes that stop using a
+  value the flagged call read (`execute("... " + name)` turned into `execute("... = %s")`) are refused
+  (`fix_drops_a_value`): the re-check alone had accepted them. The first live run, on one 1.5B model
+  and seven tasks, is described in `benchmarks/refactor_eval/README.md`; it is a set of findings, not
+  a score.
+- **`polaris fix` fixes more problems.** New checked fixes: `yaml.load` becomes `yaml.safe_load`; SQL
+  built into a DB-API `execute()` call (sqlite3, psycopg2, psycopg, pymysql, MySQLdb,
+  mysql.connector) moves its values into parameters, only where each value is plainly a value;
+  Node's `rejectUnauthorized: false` and `NODE_TLS_REJECT_UNAUTHORIZED = '0'` turn certificate
+  checks back on; and a GitHub Actions `run:` script reads an untrusted `${{ }}` value from a step
+  `env:` entry instead of having it pasted in. Each fix declines anything it can't prove and is
+  checked again before it is shown; none of them runs your tests.
+
 ## 0.5.0 (2026-10-06)
 
 - **`polaris fix`** fixes some of the problems `polaris check` finds. A fix is shown only after
