@@ -7,6 +7,7 @@ codemod editing somewhere else) so that what a person reviews stays small and lo
 
 from __future__ import annotations
 
+import ast
 import difflib
 import re
 
@@ -18,6 +19,58 @@ MAX_CHANGED_LINES = 60
 IMPORT_LINE = re.compile(r"^(?:import [A-Za-z_][\w.]*(?: as \w+)?(?:, ?[A-Za-z_][\w.]*(?: as \w+)?)*"
                          r"|from [A-Za-z_][\w.]* import [\w*, ]+)$")
 IMPORT_REGION = 200
+
+
+def argument_names(text: str, line: int) -> set[str]:
+    """Variable names read in the arguments of the calls that start on `line` (Python).
+
+    Callees (`str` in `str(x)`, `db` in `db.execute(...)`) are not values, so they are skipped.
+    An unparseable file or a line with no call gives an empty set.
+    """
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return set()
+    callees = {id(node.func) for node in ast.walk(tree) if isinstance(node, ast.Call)}
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and node.lineno == line:
+            for argument in [*node.args, *(keyword.value for keyword in node.keywords)]:
+                for child in ast.walk(argument):
+                    if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load) and id(child) not in callees:
+                        names.add(child.id)
+    return names
+
+
+def drops_a_value(original: str, replacement: str, finding: WorkflowFinding) -> bool:
+    """True when a name the flagged call read no longer appears in any line the fix adds.
+
+    A fix may stop passing a value through the dangerous path, but it must still use it: an AI that
+    turns `execute("... " + name)` into `execute("... %s")` removes the injection and the value too,
+    and the code stops working. The static re-review can't see that, because a constant query is
+    safe, so this check does. It only looks at Python and only at names in the sink call's own
+    arguments, so it can miss a drop (it never blocks a fix on a guess about code it can't parse).
+    """
+    if not finding.path.endswith(".py"):
+        return False
+    names = argument_names(original, finding.start_line)
+    if not names:
+        return False
+    try:
+        fixed = ast.parse(replacement)
+    except (SyntaxError, ValueError):
+        return False  # a file that doesn't parse is the re-review's to report, as what it is
+    before, after = original.splitlines(), replacement.splitlines()
+    opcodes = difflib.SequenceMatcher(a=before, b=after, autojunk=False).get_opcodes()
+    if not any(tag in ("replace", "delete") and start <= finding.start_line - 1 < end
+               for tag, start, end, _, _ in opcodes):
+        return False  # the flagged line itself is untouched: nothing was dropped from it
+    added = {number + 1 for tag, _, _, new_start, new_end in opcodes if tag in ("insert", "replace")
+             for number in range(new_start, new_end)}
+    # Variable reads, not text: `name` inside a SQL string is not the variable.
+    used = {node.id for node in ast.walk(fixed)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.lineno in added}
+    return not names <= used
 
 
 def scope_problem(
@@ -46,4 +99,6 @@ def scope_problem(
         return "no_change"
     if changed > max_changed_lines:
         return "change_too_large"
+    if drops_a_value(original, replacement, finding):
+        return "fix_drops_a_value"
     return None

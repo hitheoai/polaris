@@ -37,7 +37,7 @@ def replay(runner):
 
 def test_every_scripted_case_behaves_as_expected(replay):
     assert replay["mismatches"] == [] and replay["mode"] == "replay" and replay["scripted"] is True
-    assert replay["cases"] == len(replay["results"]) == 16
+    assert replay["cases"] == len(replay["results"]) == 17
     assert all(item["result"] == item["expected"] for item in replay["results"])
 
 
@@ -46,6 +46,7 @@ def test_the_corpus_covers_good_bad_and_failing_answers(replay):
     assert {"sql-concatenation", "command-os-system", "tls-verification-off", "debug-mode-on"} <= verified
     assert set(replay["rejections"]) == {
         "finding_still_detected", "edit_adds_findings", "change_outside_scope", "edited_file_not_fully_checked",
+        "fix_drops_a_value",
         "ai_invalid_candidate", "ai_secret_detected", "ai_provider_error", "ai_timeout"}
     assert replay["new_problem_rate"] > 0 and replay["behavior_unchecked"] is True
 
@@ -112,4 +113,6 @@ def test_live_uses_the_users_settings_and_labels_the_report(runner, tmp_path, mo
     assert code == 0  # live results are measurements, never a pass or fail
     assert report["mode"] == "live" and report["model"] == "my-model" and re.fullmatch(r"\d{4}-\d\d-\d\d", report["date"])
     assert "scripted" not in report and report["mismatches"] == [] and report["verified"] == 0
-    assert len(asked) == 16 and set(asked) == {"http://127.0.0.1:9/v1/chat/completions"}
+    tasks = [case for case in runner.CASES if case.get("live", True)]
+    assert 0 < len(tasks) < len(runner.CASES)  # failure-mode cases are scripted only, never asked live
+    assert report["cases"] == len(asked) == len(tasks) and set(asked)

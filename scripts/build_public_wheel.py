@@ -32,7 +32,7 @@ EXTRAS = ("model", "api", "mcp", "tui")
 PUBLIC = frozenset({
     "__init__.py", "__main__.py", "account_cli.py", "api", "artifacts.py", "benchmark.py",
     "calibration.py", "cli.py", "client.py", "contract.py", "data.py", "engine.py", "engineering",
-    "errors.py", "fixtures.py", "install.py", "integrations", "jsonio.py", "mcp", "model.py",
+    "errors.py", "fixtures.py", "graph", "install.py", "integrations", "jsonio.py", "mcp", "model.py",
     "model_cli.py", "onboarding", "preprocessing.py", "py.typed", "registry.py", "remote.py",
     "review", "runtime.py", "selftest.py", "tui", "workflow", "check", "refactor",
 })
@@ -49,6 +49,7 @@ REQUIRED = ("cli.py", "review/engine.py", "api/app.py", "mcp/server.py", "instal
             "refactor/cli.py", "refactor/plan.py", "refactor/apply.py", "refactor/generators.py",
             "refactor/codemods.py", "refactor/gates.py", "refactor/models.py", "refactor/render.py",
             "refactor/ai.py", "refactor/aiconfig.py",
+            "graph/__init__.py", "graph/build.py", "graph/model.py", "graph/pyfacts.py", "graph/callers.py",
             "engineering/models.py", "engineering/apply.py", "engineering/generation.py",
             "integrations/freshness.py", "integrations/hooks.py", "integrations/doctor.py",
             "review/capabilities.py", "review/analyzers/semgrep.py", "review/analyzers/rule_pack.py",

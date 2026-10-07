@@ -161,6 +161,34 @@ def test_the_scope_lock_keeps_fixes_near_the_problem(tmp_path):
         assert scope_problem(deep, sneaky, deep_finding) == "change_outside_scope", line
 
 
+def test_a_fix_may_not_drop_a_value_the_flagged_call_used(tmp_path):
+    finding = make_finding(tmp_path, {"db.py": SQL}, "drops")
+    kept = SQL.replace('"SELECT * FROM people WHERE name = " + name', '"SELECT * FROM people WHERE name = ?", (name,)')
+    dropped = SQL.replace('"SELECT * FROM people WHERE name = " + name', '"SELECT * FROM people WHERE name = %s"')
+    assert scope_problem(SQL, kept, finding) is None
+    assert scope_problem(SQL, dropped, finding) == "fix_drops_a_value"
+    # An f-string that loses its name, a name that survives only as a substring, and a deleted call.
+    assert scope_problem(SQL, SQL.replace(' + name', ' + "x"'), finding) == "fix_drops_a_value"
+    assert scope_problem(SQL, SQL.replace(' + name', ' + username'), finding) == "fix_drops_a_value"
+    assert scope_problem(SQL, "def search(db, name):\n    return None\n", finding) == "fix_drops_a_value"
+    # What it leaves alone: a file that doesn't parse (the re-review reports that), an untouched call.
+    assert scope_problem(SQL, "def (:\n", finding) is None
+    assert scope_problem(SQL, "import json\n" + SQL, finding) is None
+
+
+def test_the_dropped_value_check_reads_only_the_calls_own_arguments():
+    from polaris.refactor.gates import argument_names
+
+    text = "x = db.execute('q' + str(a), (b, c.d), k=e[f])\n"
+    assert argument_names(text, 1) == {"a", "b", "c", "e", "f"}  # not db, execute, str or the names k
+    assert argument_names(text, 2) == set() and argument_names("def (:\n", 1) == set()
+
+
+def test_codemod_fixes_keep_the_values_they_were_given():
+    for codemod, text, line in ((codemods.command_as_list, PING, 5), (codemods.tls_verification_on, FETCH, 5)):
+        assert codemod(text, line)  # these still pass the gate; see the plan tests for the end-to-end path
+
+
 # ---- the shared re-verifier --------------------------------------------------------------------
 
 

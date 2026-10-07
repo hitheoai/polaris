@@ -65,6 +65,30 @@ Polaris only offers fixes it can check, and only for security problems. Today:
   `shell=True` become a call with a list of arguments, when Polaris can prove the command stays
   the same. It declines shells, programs that read options from their arguments, and anything
   with shell syntax in the fixed text.
+- **Unsafe YAML loading** in Python: `yaml.load(x)`, `yaml.load(x, Loader=yaml.Loader)` (also
+  `UnsafeLoader` and `FullLoader`) and `yaml.unsafe_load(x)` become `yaml.safe_load(x)`; the `_all`
+  forms become `yaml.safe_load_all`. A YAML document that relies on Python-specific tags (such as
+  `!!python/object`) will now fail to load, so check yours. It declines other loaders, extra
+  arguments, and `from yaml import load`.
+- **SQL built from text** in Python: when a DB-API `execute()` call builds its query with `+`, an
+  f-string, `%` or `.format()`, the values move into parameters (`?` for sqlite3, `%s` for
+  psycopg2, psycopg, pymysql, MySQLdb and mysql.connector) and the quotes around each value are
+  removed with it. It only does this where each piece is a plain name, attribute or constant
+  subscript right after a comparison operator or inside `VALUES (...)`, in a plain SELECT, INSERT,
+  UPDATE or DELETE. It declines table and column names, `LIKE` patterns, `IN` lists, `LIMIT`,
+  partial string literals, comments, several statements, SQLAlchemy, Django and other database
+  libraries, and files whose driver it can't tell from the imports. Values are then sent as their
+  own type instead of as text.
+- **Turned-off certificate checks** in Node (TypeScript and JavaScript): `rejectUnauthorized: false`
+  becomes `true`, and a statement that sets `process.env.NODE_TLS_REJECT_UNAUTHORIZED` to `'0'` is
+  removed when it stands alone on its lines in a file or a `{ }` block. A server with a
+  self-signed certificate will be refused afterwards until you trust its certificate.
+- **Untrusted values in GitHub Actions scripts**: in a bash or sh `run: |` step, one untrusted
+  `${{ github.event... }}` value is moved into an `env:` entry of the step and read there, quoted
+  to match the spot it was in. It declines values inside command substitutions, heredocs or
+  comments, expressions that aren't a plain property, several expressions on one line, other shells,
+  and anything where the edited workflow would not read as the original with just that step
+  changed. The script now receives the value as one word.
 - **Option injection**: the one-line `--` edits `polaris check` already offers.
 
 A problem without a fix stays listed with the reason, so nothing is hidden. Each fix must stay
@@ -105,9 +129,14 @@ the question (and the files are still listed on stderr); decide first that those
 
 **What is checked.** An AI answer is treated like any other candidate, and more strictly:
 
-- The model returns the whole corrected file. Anything else it adds (commands to run, changes to
-  other files) is thrown away. Polaris never runs a command a model suggests.
+- The model returns only the corrected file and one sentence. Polaris builds the rest of the
+  proposal itself, so the model chooses no file path, hash, finding or command, and anything else a
+  reply contains is ignored. Polaris never runs a command a model suggests.
 - The change must stay near the problem and be small, as above.
+- For Python, a fix must keep using the variables the flagged call read. A model that turns
+  `execute("... " + name)` into `execute("... = %s")` removes the injection and the value with it, and
+  the code stops working. A constant query looks safe to the re-check, so Polaris checks this itself
+  (`fix_drops_a_value`). It can't know whether a fix that keeps the value still means the same.
 - Polaris checks the fixed code again in memory: the problem must be gone and nothing new may
   appear. A secret in your file or in the answer stops the file from being sent or the answer from
   being used.

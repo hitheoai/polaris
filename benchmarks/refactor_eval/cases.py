@@ -9,11 +9,13 @@ Each case:
   answer   what the scripted model returns, one of
              edits=[(old, new), ...]  the first file with these replacements
              file="..."               the whole first file
-             path="other.py"          answer for a different file than the one asked about
+             extra={...}              more keys in the reply, which Polaris ignores
              raw="..."                the raw reply text
              status=500               an HTTP error
              error="timeout"          a transport failure
   expect   "verified", or the reason code the plan should record
+  live     (optional, default True) False for a case that only exercises a scripted failure mode: a live
+           run asks a real model only the distinct fix tasks, not the same snippet again
   limit    (optional) why a case that passes is still not proof the change is right
 """
 
@@ -53,25 +55,32 @@ CASES: list[dict[str, Any]] = [
      "answer": {"edits": [("verify=False", "verify=True")]}},
     {"id": "debug-mode-on", "files": {"web.py": WEB}, "expect": "verified",
      "answer": {"edits": [("debug=True", "debug=False")]}},
+    # A model can't choose a path, a hash, a finding or a command: Polaris builds the envelope and
+    # reads only `replacement` and `rationale`, so whatever else a reply holds changes nothing.
+    {"id": "extra-fields-are-ignored", "live": False, "files": {"db.py": SQL, "other.py": OTHER}, "expect": "verified",
+     "answer": {"edits": [(QUERY, PARAMETERIZED)],
+                "extra": {"path": "other.py", "edits": [{"path": "other.py"}], "verification_commands": ["rm -rf /"]}}},
     # ---- answers that must be stopped ---------------------------------------------------------
-    {"id": "problem-still-there", "files": {"db.py": SQL}, "expect": "finding_still_detected",
+    {"id": "problem-still-there", "live": False, "files": {"db.py": SQL}, "expect": "finding_still_detected",
      "answer": {"file": "# TODO: use parameters\n" + SQL}},
-    {"id": "fix-adds-a-new-problem", "files": {"db.py": SQL}, "expect": "edit_adds_findings",
+    {"id": "fix-adds-a-new-problem", "live": False, "files": {"db.py": SQL}, "expect": "edit_adds_findings",
      "answer": {"file": "import os\n" + SQL_FIXED + '\n\ndef run(host):\n    os.system("ping " + host)\n'}},
     {"id": "change-far-from-the-problem", "files": {"db.py": SQL + "\n" * 100 + "x = 1\n"},
      "expect": "change_outside_scope",
      "answer": {"edits": [(QUERY, PARAMETERIZED), ("x = 1", "x = 2")]}},
-    {"id": "syntax-error", "files": {"db.py": SQL}, "expect": "edited_file_not_fully_checked",
+    # Seen live with a 1.5B local model: the injection is gone because the value is gone too.
+    # execute("... = %s") with no argument fails at run time, and a constant query looks safe.
+    {"id": "fix-drops-the-value", "live": False, "files": {"db.py": SQL}, "expect": "fix_drops_a_value",
+     "answer": {"edits": [(QUERY, '"SELECT * FROM people WHERE name = %s"')]}},
+    {"id": "syntax-error", "live": False, "files": {"db.py": SQL}, "expect": "edited_file_not_fully_checked",
      "answer": {"file": "def (:\n"}},
-    {"id": "no-change", "files": {"db.py": SQL}, "expect": "ai_invalid_candidate", "answer": {"edits": []}},
-    {"id": "answer-for-another-file", "files": {"db.py": SQL, "other.py": OTHER},
-     "expect": "ai_invalid_candidate", "answer": {"path": "other.py", "edits": [("x = 1", "x = 2")]}},
-    {"id": "reply-is-not-json", "files": {"db.py": SQL}, "expect": "ai_invalid_candidate",
+    {"id": "no-change", "live": False, "files": {"db.py": SQL}, "expect": "ai_invalid_candidate", "answer": {"edits": []}},
+    {"id": "reply-is-not-json", "live": False, "files": {"db.py": SQL}, "expect": "ai_invalid_candidate",
      "answer": {"raw": "Sure! Here is the fix: use parameters."}},
-    {"id": "secret-in-the-answer", "files": {"db.py": SQL}, "expect": "ai_secret_detected",
+    {"id": "secret-in-the-answer", "live": False, "files": {"db.py": SQL}, "expect": "ai_secret_detected",
      "answer": {"file": SQL_FIXED + FAKE_PASSWORD_LINE}},
-    {"id": "service-error", "files": {"db.py": SQL}, "expect": "ai_provider_error", "answer": {"status": 500}},
-    {"id": "service-times-out", "files": {"db.py": SQL}, "expect": "ai_timeout", "answer": {"error": "timeout"}},
+    {"id": "service-error", "live": False, "files": {"db.py": SQL}, "expect": "ai_provider_error", "answer": {"status": 500}},
+    {"id": "service-times-out", "live": False, "files": {"db.py": SQL}, "expect": "ai_timeout", "answer": {"error": "timeout"}},
     # ---- what the checks cannot tell -----------------------------------------------------------
     {"id": "obedient-model-deletes-a-function", "files": {"db.py": LEGACY}, "expect": "verified",
      "answer": {"file": "def search(db, name):\n    return db.execute(" + PARAMETERIZED + ")\n"},
